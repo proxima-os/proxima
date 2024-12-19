@@ -83,6 +83,7 @@ _Noreturn void kernel_main(void) {
     enable_irq();
     init_hpet();
     init_time();
+    init_sched();
 
     task_t *init_task;
     int error = sched_create(&init_task, init_kernel, NULL);

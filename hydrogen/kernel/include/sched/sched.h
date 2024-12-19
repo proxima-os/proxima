@@ -52,6 +52,8 @@ extern task_t *current_task;
 
 typedef void (*task_func_t)(void *);
 
+void init_sched(void);
+
 void sched_yield(void);
 
 void disable_preempt(void);
@@ -70,5 +72,7 @@ int sched_create(task_t **out, task_func_t func, void *ctx);
 void task_ref(task_t *task);
 
 void task_deref(task_t *task);
+
+void sched_set_priority(task_t *task, int priority, bool inf_timeslice);
 
 #endif // HYDROGEN_SCHED_SCHED_H

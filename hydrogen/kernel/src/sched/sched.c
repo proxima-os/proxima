@@ -32,28 +32,39 @@ static timer_event_t switch_event = {.handler = handle_switch_event};
 
 #define TIMESLICE_MIN 10000000ul // The time slice (in nanoseconds) used for priorities >= SCHED_RT_MIN
 #define TIMESLICE_MAX 50000000ul // The time slice (in nanoseconds) used for priority 0
-// The number of nanoseconds to increase the time slice by when moving up a queue.
+// The number of nanoseconds to increase the time slice by when moving down a queue.
 // Only valid if the new queue <= SCHED_RT_MIN
 #define TIMESLICE_INC ((TIMESLICE_MAX - TIMESLICE_MIN + (SCHED_RT_MIN / 2)) / SCHED_RT_MIN)
 
+// Every so often, the scheduler increases the priority of all non-real-time tasks by one to prevent starvation.
+// This parameter determines how often that happens.
+#define BOOST_INTERVAL_NS 1000000000ul
+
+static uint64_t tsc_timeslice_min;
+static uint64_t tsc_timeslice_inc;
+
 static uint64_t get_queue_timeslice(int queue) {
-    uint64_t timeslice_ns = TIMESLICE_MIN;
+    uint64_t timeslice = tsc_timeslice_min;
 
     if (queue < SCHED_RT_MIN) {
-        timeslice_ns += (SCHED_RT_MIN - queue) * TIMESLICE_INC;
+        timeslice += (SCHED_RT_MIN - queue) * tsc_timeslice_inc;
     }
 
-    return timeconv_apply(ns2tsc_conv, timeslice_ns);
+    return timeslice;
 }
 
 static uint64_t queue_mask(int queue) {
     return 1ul << queue;
 }
 
+static void update_cur_queue(void) {
+    cur_queue = queue_map ? 63 - __builtin_clzl(queue_map) : -1;
+}
+
 static void update_after_removal(int queue) {
     if (list_is_empty(&queues[queue])) {
         queue_map &= ~queue_mask(queue);
-        cur_queue = queue_map ? 63 - __builtin_clzl(queue_map) : -1;
+        update_cur_queue();
     }
 }
 
@@ -97,7 +108,7 @@ static void do_yield(bool preempt) {
     if (preempt_level != 0) return;
 
     uint64_t time = read_time();
-    uint64_t diff = switch_time - time;
+    uint64_t diff = time - switch_time;
     switch_time = time;
 
     old_task->runtime += diff;
@@ -135,6 +146,54 @@ static void do_yield(bool preempt) {
     }
 }
 
+static void check_preempt(void) {
+    if (cur_queue > current_task->priority) do_yield(true);
+}
+
+static void boost_task_func(UNUSED void *ctx) {
+    sched_set_priority(current_task, SCHED_PRIO_MAX, true);
+
+    uint64_t interval = timeconv_apply(ns2tsc_conv, BOOST_INTERVAL_NS);
+    uint64_t time = read_time() + interval;
+
+    for (;;) {
+        sched_stop(time);
+        time += interval;
+
+        irq_state_t state = save_disable_irq();
+
+        for (int i = SCHED_RT_MIN - 2; i >= 0; i--) {
+            if ((queue_map & queue_mask(i)) == 0) continue;
+
+            list_foreach(queues[i], task_t, node, cur) {
+                cur->priority += 1;
+                cur->timeslice_tot -= tsc_timeslice_inc;
+            }
+
+            list_transfer_tail(&queues[i + 1], &queues[i]);
+
+            queue_map &= ~queue_mask(i);
+            queue_map |= queue_mask(i + 1);
+        }
+
+        update_cur_queue();
+        check_preempt();
+
+        restore_irq(state);
+    }
+}
+
+void init_sched(void) {
+    tsc_timeslice_min = timeconv_apply(ns2tsc_conv, TIMESLICE_MIN);
+    tsc_timeslice_inc = timeconv_apply(ns2tsc_conv, TIMESLICE_INC);
+
+    task_t *boost_task;
+    int error = sched_create(&boost_task, boost_task_func, NULL);
+    if (error) panic("failed to create priority boost task (%d)", error);
+    sched_start(boost_task);
+    task_deref(boost_task);
+}
+
 void sched_yield(void) {
     irq_state_t state = save_disable_irq();
     do_yield(false);
@@ -168,10 +227,6 @@ bool sched_stop(uint64_t timeout) {
 
     restore_irq(state);
     return !current_task->timed_out;
-}
-
-static void check_preempt(void) {
-    if (cur_queue > current_task->priority) do_yield(true);
 }
 
 void sched_start(task_t *task) {
@@ -211,7 +266,7 @@ static void handle_switch_event(UNUSED timer_event_t *event) {
 
     if (current_task->priority > 0 && current_task->priority < SCHED_RT_MIN) {
         current_task->priority -= 1;
-        current_task->timeslice_tot += timeconv_apply(ns2tsc_conv, TIMESLICE_INC);
+        current_task->timeslice_tot += tsc_timeslice_inc;
     }
 
     do_yield(false);
@@ -266,4 +321,33 @@ void task_deref(task_t *task) {
     if (__atomic_fetch_sub(&task->references, 1, __ATOMIC_ACQ_REL) == 1) {
         kfree(task);
     }
+}
+
+void sched_set_priority(task_t *task, int priority, bool inf_timeslice) {
+    irq_state_t state = save_disable_irq();
+
+    if (priority < SCHED_RT_MIN) {
+        if (task->priority >= SCHED_RT_MIN) {
+            priority = SCHED_RT_MIN - 1;
+            inf_timeslice = false;
+        } else {
+            restore_irq(state);
+            return;
+        }
+    }
+
+    if (task->priority != priority) {
+        if (task->state == TASK_READY) {
+            list_remove(&queues[task->priority], &task->node);
+
+            if (priority < task->priority) list_insert_head(&queues[priority], &task->node);
+            else list_insert_tail(&queues[priority], &task->node);
+        }
+
+        task->priority = priority;
+    }
+
+    task->timeslice_tot = !inf_timeslice ? get_queue_timeslice(priority) : 0;
+
+    restore_irq(state);
 }
