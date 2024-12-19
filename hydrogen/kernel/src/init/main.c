@@ -9,6 +9,7 @@
 #include "drv/pic.h"
 #include "limine.h"
 #include "mem/pmm.h"
+#include "sched/proc.h"
 #include "sched/sched.h"
 #include "util/panic.h"
 #include "util/print.h"
@@ -20,10 +21,17 @@ __attribute__((used, section(".requests2"))) LIMINE_REQUESTS_END_MARKER;
 
 LIMINE_REQ LIMINE_BASE_REVISION(3);
 
+static void init_process_func(UNUSED void *ctx) {
+    printk("TODO: run init executable\n");
+}
+
 static void init_kernel(UNUSED void *ctx) {
     init_acpi_fully();
 
-    panic("TODO");
+    proc_t *proc;
+    int error = create_process(&proc, init_process_func, NULL);
+    if (error) panic("failed to create init process (%d)", error);
+    proc_deref(proc);
 }
 
 _Noreturn void kernel_main(void) {
@@ -44,12 +52,12 @@ _Noreturn void kernel_main(void) {
     enable_irq();
     init_hpet();
     init_time();
+    init_proc();
     init_sched();
 
     task_t *init_task;
-    int error = sched_create(&init_task, init_kernel, NULL);
+    int error = create_thread(&init_task, init_kernel, NULL);
     if (error) panic("failed to create init task (%d)", error);
-    sched_start(init_task);
     task_deref(init_task);
 
     for (;;) cpu_idle();

@@ -19,15 +19,18 @@ add_executable(hydrogen
     src/mem/pmm.c
     src/mem/vheap.c
     src/sched/mutex.c
+    src/sched/proc.c
     src/sched/sched.c
     src/sched/sched.S
     src/sched/sema.c
+    src/util/idmap.c
     src/util/list.c
     src/util/panic.c
     src/util/print.c
     src/util/string.c
     src/util/string.S
     src/util/time.c
+    src/util/xarray.c
     ${UACPI_SOURCES}
 )
 target_compile_definitions(hydrogen PRIVATE LIMINE_API_REVISION=2 UACPI_OVERRIDE_LIBC)

@@ -6,6 +6,8 @@
 #include "errno.h"
 #include "mem/heap.h"
 #include "mem/memlayout.h"
+#include "sched/mutex.h"
+#include "sched/proc.h"
 #include "string.h"
 #include "util/list.h"
 #include "util/panic.h"
@@ -21,6 +23,7 @@ static task_t idle_task = {
         .state = TASK_RUNNING,
         .priority = -1,
         .timeout_event.handler = handle_timeout_expired,
+        .process = &kernel_proc,
 };
 task_t *current_task = &idle_task;
 
@@ -74,7 +77,7 @@ static void prepare_for_switch(UNUSED task_t *new_task) {
     xsave();
 }
 
-static void make_zombie(task_t *task) {
+static void free_resources(task_t *task) {
     task->state = TASK_ZOMBIE;
 
     free_xsave(task->xsave_area);
@@ -82,6 +85,19 @@ static void make_zombie(task_t *task) {
 
     task->xsave_area = NULL;
     task->kernel_stack = 0;
+}
+
+static void make_zombie(task_t *task) {
+    free_resources(task);
+
+    mutex_lock(&task->process->lock);
+    list_remove(&task->process->tasks, &task->proc_node);
+
+    if (list_is_empty(&task->process->tasks)) proc_make_zombie(task->process);
+    else mutex_unlock(&task->process->lock);
+
+    proc_deref(task->process);
+    task->process = NULL;
 }
 
 // Ran right after switch_task
@@ -196,9 +212,8 @@ void init_sched(void) {
     tsc_timeslice_inc = timeconv_apply(ns2tsc_conv, TIMESLICE_INC);
 
     task_t *boost_task;
-    int error = sched_create(&boost_task, boost_task_func, NULL);
+    int error = create_thread(&boost_task, boost_task_func, NULL);
     if (error) panic("failed to create priority boost task (%d)", error);
-    sched_start(boost_task);
     task_deref(boost_task);
 }
 
@@ -239,6 +254,11 @@ bool sched_stop(uint64_t timeout) {
 
 void sched_start(task_t *task) {
     irq_state_t state = save_disable_irq();
+
+    if (task->state == TASK_EMBRYO) {
+        task_ref(task);
+        task->state = TASK_STOPPED;
+    }
 
     if (task->state == TASK_STOPPED) {
         task->state = TASK_RUNNING;
@@ -309,8 +329,8 @@ int sched_create(task_t **out, task_func_t func, void *ctx) {
     }
 
     memset(task, 0, sizeof(*task));
-    task->references = 2; // the returned task ptr and current_task for the task itself
-    task->state = TASK_STOPPED;
+    task->references = 1;
+    task->state = TASK_EMBRYO;
     task->priority = SCHED_RT_MIN - 1;
     task->timeslice_tot = get_queue_timeslice(task->priority);
     task->timeslice_rem = task->timeslice_tot;
@@ -335,6 +355,7 @@ void task_ref(task_t *task) {
 
 void task_deref(task_t *task) {
     if (__atomic_fetch_sub(&task->references, 1, __ATOMIC_ACQ_REL) == 1) {
+        if (task->state == TASK_EMBRYO) free_resources(task);
         kfree(task);
     }
 }
@@ -366,4 +387,22 @@ void sched_set_priority(task_t *task, int priority, bool inf_timeslice) {
     task->timeslice_tot = !inf_timeslice ? get_queue_timeslice(priority) : 0;
 
     restore_irq(state);
+}
+
+bool sched_wait(task_t *task, uint64_t timeout) {
+    irq_state_t state = save_disable_irq();
+
+    bool success = task->state == TASK_ZOMBIE;
+
+    if (!success) {
+        list_insert_tail(&task->waiting_tasks, &current_task->priv_node);
+        success = sched_stop(timeout);
+
+        if (!success) {
+            list_remove(&task->waiting_tasks, &current_task->priv_node);
+        }
+    }
+
+    restore_irq(state);
+    return state;
 }

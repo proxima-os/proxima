@@ -10,6 +10,7 @@
 #include "mem/pmm.h"
 #include "mem/vheap.h"
 #include "sched/mutex.h"
+#include "sched/proc.h"
 #include "sched/sched.h"
 #include "sched/sema.h"
 #include "string.h"
@@ -216,9 +217,8 @@ void init_acpi_tables(void) {
 
 void init_acpi_fully(void) {
     task_t *task;
-    int error = sched_create(&task, defer_executor_task, NULL);
+    int error = create_thread(&task, defer_executor_task, NULL);
     if (error) panic("failed to create deferred work executor (%d)", error);
-    sched_start(task);
     task_deref(task);
 
     uacpi_status ret = uacpi_initialize(0);

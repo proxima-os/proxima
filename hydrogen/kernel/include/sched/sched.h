@@ -10,6 +10,8 @@
 #define SCHED_RT_MIN 32 // Tasks at or above this priority are subject to real-time (round-robin or FIFO) scheduling
 #define SCHED_PRIO_MAX 63
 
+typedef struct proc proc_t;
+
 typedef struct {
     size_t rbx;
     size_t rbp;
@@ -26,6 +28,7 @@ typedef enum {
     TASK_STOPPED,
     TASK_EXITING,
     TASK_ZOMBIE,
+    TASK_EMBRYO,
 } task_state_t;
 
 typedef struct {
@@ -47,6 +50,11 @@ typedef struct {
     uint64_t timeslice_tot; // total length of the task's time slice in tsc ticks (0 is infinite)
     uint64_t timeslice_rem; // remaining time slice in tsc ticks
     uint64_t runtime;       // total runtime of this task in tsc ticks
+
+    proc_t *process;
+    list_node_t proc_node;
+
+    list_t waiting_tasks;
 } task_t;
 
 extern task_t *current_task;
@@ -75,5 +83,8 @@ void task_ref(task_t *task);
 void task_deref(task_t *task);
 
 void sched_set_priority(task_t *task, int priority, bool inf_timeslice);
+
+// Waits until the given task exits. Timeout has the same meaning as in sched_stop
+bool sched_wait(task_t *task, uint64_t timeout);
 
 #endif // HYDROGEN_SCHED_SCHED_H
