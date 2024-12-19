@@ -29,12 +29,17 @@ static void free_regions(uint64_t type) {
         if (entry->length == 0) continue;
 
         if (entry->type == type) {
-            page_t *page = phys_to_page(entry->base);
-            page->free.next = free_pages;
-            page->free.count = entry->length >> PAGE_SHIFT;
-            free_pages = page;
+            uint64_t aligned_start = (entry->base + PAGE_MASK) & ~PAGE_MASK;
+            uint64_t aligned_end = (entry->base + entry->length) & ~PAGE_MASK;
 
-            avail_pages += page->free.count;
+            if (aligned_start < aligned_end) {
+                page_t *page = phys_to_page(aligned_start);
+                page->free.next = free_pages;
+                page->free.count = (aligned_end - aligned_start) >> PAGE_SHIFT;
+                free_pages = page;
+
+                avail_pages += page->free.count;
+            }
         }
     }
 }
@@ -75,7 +80,7 @@ void init_pmm(void) {
 
     if (max_phys_addr == 0) panic("no usable regions in memory map");
 
-    size_t page_array_size = ((max_phys_addr >> PAGE_SHIFT) * sizeof(page_t) + PAGE_MASK) & ~PAGE_MASK;
+    size_t page_array_size = (max_phys_addr >> PAGE_SHIFT) * sizeof(page_t);
 
     for (uint64_t i = mmap->entry_count; i > 0; i--) {
         struct limine_memmap_entry *entry = mmap->entries[i - 1];
