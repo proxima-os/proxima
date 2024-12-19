@@ -19,7 +19,13 @@ void *kalloc(size_t size) {
     if (size < MIN_ALLOC_SIZE) size = MIN_ALLOC_SIZE;
 
     int order = size_to_order(size);
-    if (order > PAGE_SHIFT) return NULL;
+
+    if (order > PAGE_SHIFT) {
+        return NULL;
+    } else if (order == PAGE_SHIFT) {
+        page_t *page = alloc_page_now();
+        return page ? page_to_virt(page) : NULL;
+    }
 
     mutex_lock(&heap_lock[order]);
     void *ptr = list_remove_head(&free_objects[order]);
@@ -57,7 +63,11 @@ void kfree(void *ptr) {
 
     int order = virt_to_page(ptr)->heap.order;
 
-    mutex_lock(&heap_lock[order]);
-    list_insert_head(&free_objects[order], ptr);
-    mutex_unlock(&heap_lock[order]);
+    if (order != PAGE_SHIFT) {
+        mutex_lock(&heap_lock[order]);
+        list_insert_head(&free_objects[order], ptr);
+        mutex_unlock(&heap_lock[order]);
+    } else {
+        free_page_now(virt_to_page(ptr));
+    }
 }
