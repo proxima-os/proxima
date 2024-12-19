@@ -24,16 +24,6 @@ LIMINE_REQ LIMINE_BASE_REVISION(3);
 static void init_kernel(UNUSED void *ctx) {
     init_acpi_fully();
 
-    uint64_t threshold = read_time() + tsc_freq;
-
-    for (int i = 0;; i++) {
-        sched_stop(threshold);
-        threshold += tsc_freq;
-
-        uint64_t cur_time = timeconv_apply(tsc2ns_conv, read_time());
-        printk("iter %d, %U.%9U seconds since boot\n", i, cur_time / 1000000000, cur_time % 1000000000);
-    }
-
     panic("TODO");
 }
 
