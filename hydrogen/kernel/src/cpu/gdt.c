@@ -16,6 +16,7 @@ void init_gdt(void) {
     gdt.tss_high = tss >> 32;
 
     lgdt(&gdt, sizeof(gdt));
+    lldt(0);
     switch_segments(GDT_SEL_KCODE, GDT_SEL_KDATA);
     ltr(GDT_SEL_TSS);
 }

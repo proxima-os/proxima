@@ -19,6 +19,10 @@ static inline void lidt(void *base, size_t size) {
     asm("lidt %0" ::"m"(desc));
 }
 
+static inline void lldt(uint16_t selector) {
+    asm("lldt %0" ::"r"(selector));
+}
+
 static inline void ltr(uint16_t selector) {
     asm("ltr %0" ::"r"(selector));
 }
