@@ -202,8 +202,12 @@ void do_map(uintptr_t vaddr, uint64_t paddr, size_t size, int flags, cache_mode_
     mutex_unlock(&kernel_pt_lock);
 }
 
+_Static_assert(PAGE_SIZE >= 4096, "PAGE_SIZE is not a multiple of 4096");
+
 void alloc_and_map(uintptr_t vaddr, size_t size) {
-    ASSERT(((vaddr | size) & 0xfff) == 0);
+    ASSERT((vaddr & 0xfff) == 0);
+    ASSERT((size & PAGE_MASK) == 0);
+
     if (size == 0) return;
 
     uintptr_t end = vaddr + (size - 1);
@@ -226,6 +230,9 @@ void alloc_and_map(uintptr_t vaddr, size_t size) {
     if (l4i_start < 256) flags |= PTE_USERSPACE;
     else flags |= pg_flag;
 
+    uint64_t cur_phys = 0;
+    size_t cur_phys_rem = 0;
+
     uint64_t *l4 = kernel_pt;
     mutex_lock(&kernel_pt_lock);
 
@@ -245,7 +252,14 @@ void alloc_and_map(uintptr_t vaddr, size_t size) {
                 uint64_t *l1 = phys_to_virt(l2[l2i] & PTE_ADDR);
 
                 for (size_t l1i = l1i_start; l1i <= l1i_end; l1i++) {
-                    uint64_t pte = page_to_phys(alloc_page()) | flags;
+                    if (cur_phys_rem == 0) {
+                        cur_phys = page_to_phys(alloc_page());
+                        cur_phys_rem = PAGE_SIZE / 4096;
+                    }
+
+                    uint64_t pte = cur_phys | flags;
+                    cur_phys += 4096;
+                    cur_phys_rem -= 1;
 
                     ASSERT(l1[l1i] == 0 || l1[l1i] == pte);
                     l1[l1i] = pte;
@@ -393,7 +407,9 @@ void unmap(uintptr_t vaddr, size_t size) {
 }
 
 void unmap_and_free(uintptr_t vaddr, size_t size) {
-    ASSERT(((vaddr | size) & 0xfff) == 0);
+    ASSERT((vaddr & 0xfff) == 0);
+    ASSERT((size & PAGE_MASK) == 0);
+
     if (size == 0) return;
 
     uintptr_t end = vaddr + (size - 1);
@@ -435,7 +451,9 @@ void unmap_and_free(uintptr_t vaddr, size_t size) {
                     if (l1e != 0) {
                         l1[l1i] = 0;
                         invlpg(vaddr);
-                        free_page(phys_to_page(l1e & PTE_ADDR));
+
+                        uint64_t phys = l1e & PTE_ADDR;
+                        if ((phys & PAGE_MASK) == 0) free_page(phys_to_page(phys));
                     }
 
                     vaddr += 0x1000;
