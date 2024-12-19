@@ -14,6 +14,8 @@
 
 static void handle_timeout_expired(timer_event_t *event);
 
+static void handle_switch_event(timer_event_t *event);
+
 static task_t idle_task = {
         .state = TASK_RUNNING,
         .priority = -1,
@@ -25,6 +27,24 @@ static list_t queues[SCHED_PRIO_MAX + 1];
 static int cur_queue = -1;
 static uint64_t queue_map;
 static int preempt_level;
+static uint64_t switch_time;
+static timer_event_t switch_event = {.handler = handle_switch_event};
+
+#define TIMESLICE_MIN 10000000ul // The time slice (in nanoseconds) used for priorities >= SCHED_RT_MIN
+#define TIMESLICE_MAX 50000000ul // The time slice (in nanoseconds) used for priority 0
+// The number of nanoseconds to increase the time slice by when moving up a queue.
+// Only valid if the new queue <= SCHED_RT_MIN
+#define TIMESLICE_INC ((TIMESLICE_MAX - TIMESLICE_MIN + (SCHED_RT_MIN / 2)) / SCHED_RT_MIN)
+
+static uint64_t get_queue_timeslice(int queue) {
+    uint64_t timeslice_ns = TIMESLICE_MIN;
+
+    if (queue < SCHED_RT_MIN) {
+        timeslice_ns += (SCHED_RT_MIN - queue) * TIMESLICE_INC;
+    }
+
+    return timeconv_apply(ns2tsc_conv, timeslice_ns);
+}
 
 static uint64_t queue_mask(int queue) {
     return 1ul << queue;
@@ -76,6 +96,18 @@ static void do_yield(bool preempt) {
 
     if (preempt_level != 0) return;
 
+    uint64_t time = read_time();
+    uint64_t diff = switch_time - time;
+    switch_time = time;
+
+    old_task->runtime += diff;
+
+    if (diff >= old_task->timeslice_rem) {
+        old_task->timeslice_rem = old_task->timeslice_tot;
+    } else {
+        old_task->timeslice_rem -= diff;
+    }
+
     task_t *new_task;
 
     if (cur_queue >= 0) {
@@ -86,6 +118,13 @@ static void do_yield(bool preempt) {
     }
 
     new_task->state = TASK_RUNNING;
+
+    if (new_task->timeslice_rem != 0) {
+        switch_event.timestamp = time + new_task->timeslice_rem;
+        if (!switch_event.queued) queue_event(&switch_event);
+    } else if (switch_event.queued) {
+        cancel_event(&switch_event);
+    }
 
     if (old_task != new_task) {
         prepare_for_switch(new_task);
@@ -167,6 +206,17 @@ static void handle_timeout_expired(timer_event_t *event) {
     sched_start(task);
 }
 
+static void handle_switch_event(UNUSED timer_event_t *event) {
+    ASSERT(current_task->state == TASK_RUNNING);
+
+    if (current_task->priority > 0 && current_task->priority < SCHED_RT_MIN) {
+        current_task->priority -= 1;
+        current_task->timeslice_tot += timeconv_apply(ns2tsc_conv, TIMESLICE_INC);
+    }
+
+    do_yield(false);
+}
+
 _Noreturn void sched_init_task(task_func_t func, void *ctx, task_t *task) {
     task_t *old = current_task;
     current_task = task;
@@ -191,7 +241,9 @@ int sched_create(task_t **out, task_func_t func, void *ctx) {
 
     task->references = 2; // the returned task ptr and current_task for the task itself
     task->state = TASK_STOPPED;
-    task->priority = SCHED_PRIO_MAX;
+    task->priority = SCHED_RT_MIN - 1;
+    task->timeslice_tot = get_queue_timeslice(task->priority);
+    task->timeslice_rem = task->timeslice_tot;
 
     task->ctx.rbx = (uintptr_t)func;
     task->ctx.r12 = (uintptr_t)ctx;

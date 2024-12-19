@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define SCHED_RT_MIN 32 // Tasks at or above this priority are subject to real-time (round-robin or FIFO) scheduling
 #define SCHED_PRIO_MAX 63
 
 typedef struct {
@@ -41,6 +42,10 @@ typedef struct {
     bool timed_out;
 
     list_node_t priv_node;
+
+    uint64_t timeslice_tot; // total length of the task's time slice in tsc ticks (0 is infinite)
+    uint64_t timeslice_rem; // remaining time slice in tsc ticks
+    uint64_t runtime;       // total runtime of this task in tsc ticks
 } task_t;
 
 extern task_t *current_task;
