@@ -1,0 +1,37 @@
+name: Create release ISO
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  BUILD_TYPE: Release
+  LTO: ON
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        arch: [x86_64]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+  
+    - name: Configure CMake
+      run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{env.LTO}} -GNinja --toolchain ${{github.workspace}}/cmake/cross/${{matrix.arch}}.cmake 
+  
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Create ISO
+      run: ${{github.workspace}}/scripts/mkiso.sh proxima.iso
+      working-directory: ${{github.workspace}}/build
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: iso-image
+        path: ${{github.workspace}}/build/proxima.iso
