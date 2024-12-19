@@ -7,9 +7,15 @@ if test "$#" -ne 1; then
 fi
 
 # Clone, update, and build Limine
-git clone https://github.com/limine-bootloader/limine.git --depth 1 --branch v8.x-binary
+if test -d limine; then
+    cd limine
+    git pull
+    cd ..
+else
+    git clone https://github.com/limine-bootloader/limine.git --depth 1 --branch v8.x-binary
+fi
+
 cd limine
-git pull
 make
 cd ..
 
