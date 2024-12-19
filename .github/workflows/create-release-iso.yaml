@@ -21,6 +21,9 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Install dependencies
+      run: sudo apt-get install -y xorriso
+
     - name: Configure CMake
       run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{env.LTO}} --toolchain ${{github.workspace}}/cmake/cross/${{matrix.arch}}.cmake
 
