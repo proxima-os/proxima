@@ -1,0 +1,3 @@
+[submodule "hydrogen/uacpi"]
+	path = hydrogen/uacpi
+	url = https://github.com/proxima-os/uACPI.git
