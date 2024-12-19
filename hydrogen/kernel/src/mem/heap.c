@@ -24,7 +24,13 @@ void *kalloc(size_t size) {
         return NULL;
     } else if (order == PAGE_SHIFT) {
         page_t *page = alloc_page_now();
-        return page ? page_to_virt(page) : NULL;
+
+        if (page) {
+            page->heap.order = PAGE_SHIFT;
+            return page_to_virt(page);
+        } else {
+            return NULL;
+        }
     }
 
     mutex_lock(&heap_lock[order]);
