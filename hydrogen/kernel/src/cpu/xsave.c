@@ -62,7 +62,16 @@ static void do_xsave(void *ptr) {
 
 void *alloc_xsave(void) {
     void *ptr = kalloc(ctx_size);
-    if (ptr) do_xsave(ptr);
+
+    if (ptr) {
+        if (ctx_style != CTX_FXSAVE) {
+            ASSERT(ctx_size >= 576);
+            memset(ptr + 512, 0, 64); // clear xsave header
+        }
+
+        do_xsave(ptr);
+    }
+
     return ptr;
 }
 
