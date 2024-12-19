@@ -2,6 +2,7 @@
 #include "asm/irq.h"
 #include "compiler.h"
 #include "cpu/tss.h"
+#include "cpu/xsave.h"
 #include "errno.h"
 #include "mem/heap.h"
 #include "mem/memlayout.h"
@@ -70,15 +71,22 @@ static void update_after_removal(int queue) {
 
 // Ran right before switch_task
 static void prepare_for_switch(UNUSED task_t *new_task) {
+    xsave();
 }
 
 static void make_zombie(task_t *task) {
     task->state = TASK_ZOMBIE;
+
+    free_xsave(task->xsave_area);
     kfree((void *)task->kernel_stack - KERNEL_STACK_SIZE);
+
+    task->xsave_area = NULL;
+    task->kernel_stack = 0;
 }
 
 // Ran right after switch_task
 static void finish_switch(task_t *old_task) {
+    xrestore();
     kernel_tss.rsp[0] = current_task->kernel_stack;
 
     if (old_task->state == TASK_EXITING) {
@@ -286,14 +294,21 @@ extern const void task_init_stub;
 int sched_create(task_t **out, task_func_t func, void *ctx) {
     task_t *task = kalloc(sizeof(*task));
     if (!task) return ENOMEM;
-    memset(task, 0, sizeof(*task));
 
-    void *stack = kalloc(KERNEL_STACK_SIZE);
-    if (!stack) {
+    void *xsave = alloc_xsave();
+    if (!xsave) {
         kfree(task);
         return ENOMEM;
     }
 
+    void *stack = kalloc(KERNEL_STACK_SIZE);
+    if (!stack) {
+        free_xsave(xsave);
+        kfree(task);
+        return ENOMEM;
+    }
+
+    memset(task, 0, sizeof(*task));
     task->references = 2; // the returned task ptr and current_task for the task itself
     task->state = TASK_STOPPED;
     task->priority = SCHED_RT_MIN - 1;
@@ -306,6 +321,7 @@ int sched_create(task_t **out, task_func_t func, void *ctx) {
     task->kernel_stack = (uintptr_t)stack + KERNEL_STACK_SIZE;
     task->ctx.rsp = task->kernel_stack - sizeof(const void *);
     *(const void **)task->ctx.rsp = &task_init_stub;
+    task->xsave_area = xsave;
 
     task->timeout_event.handler = handle_timeout_expired;
 

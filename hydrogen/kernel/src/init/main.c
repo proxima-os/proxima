@@ -3,6 +3,7 @@
 #include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/lapic.h"
+#include "cpu/xsave.h"
 #include "drv/acpi.h"
 #include "drv/hpet.h"
 #include "drv/pic.h"
@@ -35,6 +36,7 @@ _Noreturn void kernel_main(void) {
     if (!LIMINE_BASE_REVISION_SUPPORTED) panic("requested base revision not supported");
 
     init_pmm();
+    init_xsave();
     init_acpi_tables();
     init_lapic();
     reclaim_loader_memory();

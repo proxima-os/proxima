@@ -2,6 +2,7 @@
 #define HYDROGEN_ASM_CR_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define CR0_MP (1u << 1)
 #define CR0_EM (1u << 2)
@@ -16,6 +17,7 @@
 #define CR4_OSXMMEXCPT (1u << 10)
 #define CR4_UMIP (1u << 11)
 #define CR4_FSGSBASE (1u << 16)
+#define CR4_OSXSAVE (1u << 18)
 #define CR4_SMEP (1u << 20)
 #define CR4_SMAP (1u << 21)
 
@@ -63,6 +65,19 @@ static inline void write_cr4(size_t value) {
 
 static inline void write_cr8(size_t value) {
     asm("mov %0, %%cr8" ::"r"(value));
+}
+
+static inline void write_xcr(uint32_t cr, uint64_t value) {
+    uint32_t low = value;
+    uint32_t high = value >> 32;
+    asm("xsetbv" ::"a"(low), "d"(high), "c"(cr));
+}
+
+static inline uint64_t read_xcr(uint32_t cr) {
+    uint32_t low;
+    uint32_t high;
+    asm volatile("xgetbv" : "=a"(low), "=d"(high) : "c"(cr));
+    return ((uint64_t)high << 32) | low;
 }
 
 #endif // HYDROGEN_ASM_CR_H

@@ -36,6 +36,7 @@ typedef struct {
     int priority;
 
     task_ctx_t ctx;
+    void *xsave_area;
     uintptr_t kernel_stack;
 
     timer_event_t timeout_event;

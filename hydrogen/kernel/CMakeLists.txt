@@ -8,6 +8,7 @@ add_executable(hydrogen
     src/cpu/lapic.c
     src/cpu/lapic.S
     src/cpu/tss.c
+    src/cpu/xsave.c
     src/drv/acpi.c
     src/drv/hpet.c
     src/drv/pic.c
