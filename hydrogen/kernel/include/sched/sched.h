@@ -39,6 +39,8 @@ typedef struct {
 
     timer_event_t timeout_event;
     bool timed_out;
+
+    list_node_t priv_node;
 } task_t;
 
 extern task_t *current_task;

@@ -13,8 +13,12 @@ bool sema_wait(semaphore_t *sema, uint64_t timeout) {
     if (success) {
         sema->value -= 1;
     } else {
-        list_insert_tail(&sema->waiters, &current_task->node);
+        list_insert_tail(&sema->waiters, &current_task->priv_node);
         success = sched_stop(timeout);
+
+        if (!success) {
+            list_remove(&sema->waiters, &current_task->priv_node);
+        }
     }
 
     restore_irq(state);
@@ -24,7 +28,7 @@ bool sema_wait(semaphore_t *sema, uint64_t timeout) {
 void sema_signal(semaphore_t *sema) {
     irq_state_t state = save_disable_irq();
 
-    task_t *task = node_to_obj(task_t, node, list_remove_head(&sema->waiters));
+    task_t *task = node_to_obj(task_t, priv_node, list_remove_head(&sema->waiters));
 
     if (task == NULL) {
         sema->value += 1;

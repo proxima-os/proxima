@@ -53,8 +53,12 @@ bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
 
     if (!success) {
         mutex->state = MUTEX_LOCKED_QUEUED;
-        list_insert_tail(&mutex->waiters, &current_task->node);
-        sched_stop(timeout);
+        list_insert_tail(&mutex->waiters, &current_task->priv_node);
+        success = sched_stop(timeout);
+
+        if (!success) {
+            list_remove(&mutex->waiters, &current_task->priv_node);
+        }
     } else {
         mutex->state = MUTEX_LOCKED_NOQUEUE;
     }
@@ -82,7 +86,7 @@ void mutex_unlock(mutex_t *mutex) {
     irq_state_t state = save_disable_irq();
 
     // Don't need to check mutex->state again, since it can only be moved off of MUTEX_LOCKED_* by mutex_unlock
-    task_t *task = node_to_obj(task_t, node, list_remove_head(&mutex->waiters));
+    task_t *task = node_to_obj(task_t, priv_node, list_remove_head(&mutex->waiters));
     if (list_is_empty(&mutex->waiters)) mutex->state = MUTEX_LOCKED_NOQUEUE;
     sched_start(task);
 
