@@ -3,6 +3,7 @@
 #include "asm/irq.h"
 #include "asm/msr.h"
 #include "compiler.h"
+#include "cpu/cpu.h"
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
 #include "cpu/lapic.h"
@@ -20,7 +21,6 @@ timeconv_t ns2tsc_conv;
 
 static uint64_t lapic_freq;
 static timeconv_t tsc2lapic_conv;
-static bool use_tsc_deadline;
 
 #define CALIBRATE_MS 500
 #define CALIBRATE_FS (CALIBRATE_MS * 1000000000000)
@@ -93,15 +93,10 @@ static void calibrate_tsc(void) {
 }
 
 static void init_tsc(void) {
-    unsigned eax, ebx, ecx, edx;
+    if (!tsc_supported) panic("tsc not supported");
 
-    if (!try_cpuid(1, &eax, &ebx, &ecx, &edx) || (edx & (1u << 4)) == 0) {
-        panic("tsc not supported");
-    }
-
-    use_tsc_deadline = ecx & (1u << 24);
-
-    if (ecx & (1u << 31)) {
+    if (running_in_hypervisor) {
+        unsigned eax, ebx, ecx, edx;
         cpuid(0x40000000, &eax, &ebx, &ecx, &edx);
 
         if (eax >= 0x40000010) {
@@ -114,7 +109,7 @@ static void init_tsc(void) {
         }
     }
 
-    if (!try_cpuid(0x80000007, &eax, &ebx, &ecx, &edx) || (edx & (1u << 8)) == 0) {
+    if (!tsc_invariant) {
         printk("time: warn: tsc not reported as invariant, timing may be unreliable\n");
     }
 
@@ -131,7 +126,7 @@ static timer_event_t *next_timer_event;
 
 static void reprogram_timer(void) {
     if (next_timer_event != NULL) {
-        if (use_tsc_deadline) {
+        if (tsc_deadline_supported) {
             wrmsr(MSR_TSC_DEADLINE, next_timer_event->timestamp + boot_tsc);
         } else {
             uint64_t cur = read_time();
@@ -210,7 +205,14 @@ static void handle_timer_irq(UNUSED idt_frame_t *frame) {
 void init_time(void) {
     init_tsc();
     idt_install(IRQ_TIMER, handle_timer_irq);
-    lapic_setup_timer(use_tsc_deadline ? TIMER_TSC_DEADLINE : TIMER_ONESHOT);
+
+    if (tsc_deadline_supported) {
+        printk("time: using tsc deadline for events\n");
+        lapic_setup_timer(TIMER_TSC_DEADLINE);
+    } else {
+        printk("time: using lapic oneshot for events\n");
+        lapic_setup_timer(TIMER_ONESHOT);
+    }
 }
 
 void queue_event(timer_event_t *event) {

@@ -1,4 +1,5 @@
 #include "cpu/lapic.h"
+#include "asm/cr.h"
 #include "asm/idle.h"
 #include "asm/msr.h"
 #include "compiler.h"
@@ -86,6 +87,8 @@ static void do_init_lapic(void) {
     lapic_write32(LAPIC_LVT_ERROR, IRQ_APIC_ERR);
     lapic_write32(LAPIC_TIMER_DCR, LAPIC_TIMER_DCR_16);
     lapic_write32(LAPIC_SPR, LAPIC_SPR_ENABLE | IRQ_SPURIOUS);
+    write_cr8(0);
+
     cpu_apic_id = lapic_read32(LAPIC_ID);
 
     if (cpu_apic_id > 0xff) panic("bsp lapic is not addressable by i/o apics");

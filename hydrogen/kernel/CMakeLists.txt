@@ -1,4 +1,5 @@
 add_executable(hydrogen
+    src/cpu/cpu.c
     src/cpu/exc.c
     src/cpu/gdt.c
     src/cpu/gdt.S

@@ -1,9 +1,7 @@
 #include "asm/idle.h"
 #include "asm/irq.h"
 #include "compiler.h"
-#include "cpu/exc.h"
-#include "cpu/gdt.h"
-#include "cpu/idt.h"
+#include "cpu/cpu.h"
 #include "cpu/lapic.h"
 #include "drv/acpi.h"
 #include "drv/hpet.h"
@@ -29,9 +27,7 @@ static void init_kernel(UNUSED void *ctx) {
 
 _Noreturn void kernel_main(void) {
     boot_tsc = read_time();
-    init_gdt();
-    init_idt();
-    init_exc();
+    init_cpu();
 
     init_print();
     printk("Starting Hydrogen...\n");

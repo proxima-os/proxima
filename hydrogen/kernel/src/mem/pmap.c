@@ -1,6 +1,6 @@
 #include "mem/pmap.h"
-#include "asm/cpuid.h"
 #include "asm/cr.h"
+#include "cpu/cpu.h"
 #include "errno.h"
 #include "mem/heap.h"
 #include "mem/pmm.h"
@@ -32,10 +32,6 @@
 static uint64_t *kernel_pt;
 static mutex_t kernel_pt_lock;
 
-static uint64_t pg_flag;
-static uint64_t nx_flag;
-static bool l3_direct;
-
 static void invlpg(uintptr_t vaddr) {
     asm("invlpg (%0)" ::"r"(vaddr) : "memory");
 }
@@ -47,25 +43,14 @@ static void *alloc_table(void) {
 }
 
 void init_pmap(void) {
-    uint32_t eax, ebx, ecx, edx;
-
-    if (try_cpuid(1, &eax, &ebx, &ecx, &edx)) {
-        if (edx & (1 << 13)) pg_flag = PTE_GLOBAL;
-    }
-
-    if (try_cpuid(0x80000001, &eax, &ebx, &ecx, &edx)) {
-        if (edx & (1 << 20)) nx_flag = PTE_NX;
-        if (edx & (1 << 26)) l3_direct = true;
-    }
-
     kernel_pt = alloc_table();
     if (kernel_pt == NULL) panic("failed to allocate kernel page table");
 }
 
 void switch_to_kernel_mappings(void) {
-    if (pg_flag != 0) write_cr4(read_cr4() & ~CR4_PGE);
+    if (pg_supported) write_cr4(read_cr4() & ~CR4_PGE);
     write_cr3(virt_to_phys(kernel_pt));
-    if (pg_flag != 0) write_cr4(read_cr4() | CR4_PGE);
+    if (pg_supported) write_cr4(read_cr4() | CR4_PGE);
 }
 
 int prepare_map(uintptr_t vaddr, size_t size) {
@@ -161,10 +146,10 @@ void do_map(uintptr_t vaddr, uint64_t paddr, size_t size, int flags, cache_mode_
     uint64_t pte = paddr | ((mode & 4) << 5) | PTE_DIRTY | PTE_ACCESSED | ((mode & 3) << 3) | PTE_PRESENT;
 
     if (l4i_start < 256) pte |= PTE_USERSPACE;
-    else pte |= pg_flag;
+    else if (pg_supported) pte |= PTE_GLOBAL;
 
     if (flags & PMAP_WRITE) pte |= PTE_WRITABLE;
-    if (!(flags & PMAP_EXEC)) pte |= nx_flag;
+    if (!(flags & PMAP_EXEC) && nx_supported) pte |= PTE_NX;
 
     uint64_t *l4 = kernel_pt;
     mutex_lock(&kernel_pt_lock);
@@ -225,10 +210,12 @@ void alloc_and_map(uintptr_t vaddr, size_t size) {
 
     ASSERT((l4i_start & 256) == (l4i_end & 256));
 
-    uint64_t flags = nx_flag | PTE_DIRTY | PTE_ACCESSED | PTE_WRITABLE | PTE_PRESENT;
+    uint64_t flags = PTE_DIRTY | PTE_ACCESSED | PTE_WRITABLE | PTE_PRESENT;
+
+    if (nx_supported) flags |= PTE_NX;
 
     if (l4i_start < 256) flags |= PTE_USERSPACE;
-    else flags |= pg_flag;
+    else if (pg_supported) flags |= PTE_GLOBAL;
 
     uint64_t cur_phys = 0;
     size_t cur_phys_rem = 0;
@@ -299,7 +286,7 @@ void remap(uintptr_t vaddr, size_t size, int flags) {
     uint64_t mask = 0;
 
     if (flags & PMAP_WRITE) mask |= PTE_WRITABLE;
-    if (!(flags & PMAP_EXEC)) mask |= nx_flag;
+    if (!(flags & PMAP_EXEC) && nx_supported) mask |= PTE_NX;
 
     uint64_t *l4 = kernel_pt;
     mutex_lock(&kernel_pt_lock);
@@ -492,7 +479,11 @@ void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
     size_t l2i_end = 511;
     size_t l1i_end = 511;
 
-    uint64_t base_flags = nx_flag | pg_flag | PTE_DIRTY | PTE_ACCESSED | ((mode & 3) << 3) | PTE_WRITABLE | PTE_PRESENT;
+    uint64_t base_flags = PTE_DIRTY | PTE_ACCESSED | ((mode & 3) << 3) | PTE_WRITABLE | PTE_PRESENT;
+
+    if (pg_supported) base_flags |= PTE_GLOBAL;
+    if (nx_supported) base_flags |= PTE_NX;
+
     uint64_t norm_flags = ((mode & 4) << 5) | base_flags;
     uint64_t huge_flags = ((mode & 4) << 10) | PTE_HUGE | base_flags;
 
@@ -521,7 +512,7 @@ void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
 
             if (l3e) {
                 l2 = phys_to_virt(l3e & PTE_ADDR);
-            } else if (l3_direct && l2i_start == 0 && l2i_end == 511 && (paddr & 0x3fffffff) == 0) {
+            } else if (gb_pages_supported && l2i_start == 0 && l2i_end == 511 && (paddr & 0x3fffffff) == 0) {
                 if (l3[l3i] == 0) l3[l3i] = paddr | huge_flags;
                 paddr += 0x40000000;
                 continue;
