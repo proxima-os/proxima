@@ -21,47 +21,10 @@ __attribute__((used, section(".requests2"))) LIMINE_REQUESTS_END_MARKER;
 
 LIMINE_REQ LIMINE_BASE_REVISION(3);
 
-static void test_task(void *ctx) {
-    uint64_t threshold = timeconv_apply(ns2tsc_conv, 1000000); // 1 millisecond
-
-    uint64_t last = read_time();
-
-    for (;;) {
-        uint64_t cur = read_time();
-
-        if (cur - last > threshold) {
-            uint64_t last_ns = timeconv_apply(tsc2ns_conv, last);
-            uint64_t cur_ns = timeconv_apply(tsc2ns_conv, cur);
-            uint64_t diff_ns = cur_ns - last_ns;
-            printk("Potential task switch onto %s(%d): last was at %U.%9U, now %U.%9U (diff %U.%9U)\n",
-                   ctx,
-                   current_task->priority,
-                   last_ns / 1000000000,
-                   last_ns % 1000000000,
-                   cur_ns / 1000000000,
-                   cur_ns % 1000000000,
-                   diff_ns / 1000000000,
-                   diff_ns % 1000000000);
-        }
-
-        last = cur;
-    }
-}
-
 static void init_kernel(UNUSED void *ctx) {
     init_acpi_fully();
 
-    task_t *t1, *t2;
-    int error = sched_create(&t1, test_task, "Task 1");
-    if (error) panic("1 (%d)", error);
-    error = sched_create(&t2, test_task, "Task 2");
-    if (error) panic("2 (%d)", error);
-    sched_start(t1);
-    sched_start(t2);
-    task_deref(t1);
-    task_deref(t2);
-
-    // panic("TODO");
+    panic("TODO");
 }
 
 _Noreturn void kernel_main(void) {
