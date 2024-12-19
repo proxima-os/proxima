@@ -8,6 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// This is a very basic framebuffer printing implementation - it doesn't even implement scrolling, just wraparound,
+// and makes no attempt at minimizing the number of drawn characters. That's because it's only meant to be used during
+// boot and for panics. The terminal used by userspace will be implemented *in* userspace as a pseudoterminal that draws
+// directly to the framebuffer.
+
 #define CHAR_WIDTH 8
 #define CHAR_HEIGHT 16
 #define MAX_DIGITS 32
