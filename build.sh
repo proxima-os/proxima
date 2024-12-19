@@ -6,7 +6,7 @@ if test "$#" -ne 1; then
     exit 2
 fi
 
-mkdir build
+mkdir -p build
 cd build
 cmake .. --toolchain "../cmake/cross/$1.cmake" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=1 \
     -G Ninja
