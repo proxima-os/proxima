@@ -91,6 +91,17 @@ void init_pmm(void) {
 
     if (max_phys_addr == 0) panic("no usable regions in memory map");
     if (max_phys_addr > cpu_paddr_mask) max_phys_addr = cpu_paddr_mask + 1;
+
+    uint64_t max_hhdm_size;
+    if (hhdm_start < &_start) max_hhdm_size = &_start - hhdm_start;
+    else max_hhdm_size = UINTPTR_MAX - (uintptr_t)hhdm_start + 1;
+
+    uint64_t hhdm_size = (UINTPTR_MAX - MIN_KERNEL_VIRT_ADDR + 1) / 2;
+    if (hhdm_size > cpu_paddr_mask) hhdm_size = cpu_paddr_mask + 1;
+    if (hhdm_size > max_hhdm_size) hhdm_size = max_hhdm_size;
+
+    if (max_phys_addr > hhdm_size) max_phys_addr = hhdm_size;
+
     max_phys_addr &= ~PAGE_MASK;
 
     size_t page_array_size = (max_phys_addr >> PAGE_SHIFT) * sizeof(page_t);
@@ -111,10 +122,12 @@ void init_pmm(void) {
 
     if (hhdm_start < &_start) {
         add_vmm_range(MIN_KERNEL_VIRT_ADDR, (uintptr_t)hhdm_start - 1);
+        add_vmm_range((uintptr_t)hhdm_start + hhdm_size, (uintptr_t)&_start - 1);
         add_vmm_range((uintptr_t)&_end, UINTPTR_MAX);
     } else {
         add_vmm_range(MIN_KERNEL_VIRT_ADDR, (uintptr_t)&_start - 1);
         add_vmm_range((uintptr_t)&_end, (uintptr_t)hhdm_start - 1);
+        add_vmm_range((uintptr_t)hhdm_start + hhdm_size, UINTPTR_MAX);
     }
 
     uint64_t map_start = 0;
