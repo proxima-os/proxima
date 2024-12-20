@@ -25,17 +25,14 @@ void list_insert_tail(list_t *list, list_node_t *value) {
 }
 
 void list_insert_before(list_t *list, list_node_t *before, list_node_t *value) {
-    if (before) {
-        value->prev = before->prev;
-        value->next = before;
+    value->prev = before ? before->prev : list->last;
+    value->next = before;
 
-        if (before->prev) before->prev->next = value;
-        else list->first = value;
+    if (value->prev) before->prev->next = value;
+    else list->first = value;
 
-        before->prev = value;
-    } else {
-        list_insert_tail(list, value);
-    }
+    if (before) before->prev = value;
+    else list->last = value;
 }
 
 list_node_t *list_remove_head(list_t *list) {
