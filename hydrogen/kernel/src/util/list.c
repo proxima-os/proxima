@@ -56,7 +56,9 @@ list_node_t *list_remove_tail(list_t *list) {
 
     if (node) {
         list->last = node->prev;
-        if (!list->last) list->first = NULL;
+
+        if (list->last) list->last->next = NULL;
+        else list->first = NULL;
     }
 
     return node;
