@@ -7,8 +7,6 @@
 #include "util/print.h"
 #include <stdint.h>
 
-// TODO: Make the init code work for PAGE_SHIFT != 12
-
 void *hhdm_start;
 page_t *page_array;
 
