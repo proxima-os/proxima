@@ -43,7 +43,9 @@ list_node_t *list_remove_head(list_t *list) {
 
     if (node) {
         list->first = node->next;
-        if (!list->first) list->last = NULL;
+
+        if (list->first) list->first->prev = NULL;
+        else list->last = NULL;
     }
 
     return node;
