@@ -45,12 +45,11 @@ static void update_order(vmem_t *vmem, struct range_info *info) {
 }
 
 static uint64_t hash(uint64_t x) {
-    x *= 0x655957f30ca7c0eb;
-    x = __builtin_bswap64(x);
-    x ^= x >> 11;
-    x *= 0xe16620abcb836b8f;
-    x ^= x >> 8;
-    x *= 0xd0b3c470eea38fe3;
+    x *= 0xe9770214b82cf957;
+    x ^= x >> 47;
+    x *= 0x2bdd9d20d060fc9b;
+    x ^= x >> 44;
+    x *= 0x65c487023b406173;
     return x;
 }
 
