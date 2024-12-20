@@ -107,33 +107,6 @@ void init_pmm(void) {
     free_regions(LIMINE_MEMMAP_USABLE);
     init_pmap();
 
-    uint64_t map_start = 0;
-    uint64_t map_end = 0;
-
-    for (uint64_t i = 0; i < mmap->entry_count; i++) {
-        struct limine_memmap_entry *entry = mmap->entries[i];
-        if (entry->type != LIMINE_MEMMAP_USABLE && entry->type != LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) continue;
-        if (entry->length == 0) continue;
-
-        if (map_end != entry->base) {
-            extend_hhdm(map_start, map_end - map_start, CACHE_WRITEBACK);
-            map_start = map_end = entry->base;
-        }
-
-        map_end += entry->length;
-    }
-
-    extend_hhdm(map_start, map_end - map_start, CACHE_WRITEBACK);
-
-    extend_hhdm(virt_to_phys(page_array), page_array_size, CACHE_WRITEBACK);
-    map_print();
-
-    map_segment(&_start, &_erodata, 0);
-    map_segment(&_erodata, &_etext, PMAP_EXEC);
-    map_segment(&_etext, &_end, PMAP_WRITE);
-
-    switch_to_kernel_mappings();
-
     if (hhdm_start < &_start) {
         add_vmm_range(MIN_KERNEL_VIRT_ADDR, (uintptr_t)hhdm_start - 1);
         add_vmm_range((uintptr_t)&_end, UINTPTR_MAX);
@@ -141,6 +114,35 @@ void init_pmm(void) {
         add_vmm_range(MIN_KERNEL_VIRT_ADDR, (uintptr_t)&_start - 1);
         add_vmm_range((uintptr_t)&_end, (uintptr_t)hhdm_start - 1);
     }
+
+    uint64_t map_start = 0;
+    uint64_t map_end = 0;
+
+    for (uint64_t i = 0; i < mmap->entry_count; i++) {
+        struct limine_memmap_entry *entry = mmap->entries[i];
+        if (entry->type != LIMINE_MEMMAP_USABLE && entry->type != LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) continue;
+
+        uint64_t length = entry->length;
+        if (entry->base + length == virt_to_phys(page_array)) length += page_array_size;
+        if (entry->length == 0) continue;
+
+        if (map_end != entry->base) {
+            extend_hhdm(map_start, map_end - map_start, CACHE_WRITEBACK);
+            map_start = map_end = entry->base;
+        }
+
+        map_end += length;
+    }
+
+    extend_hhdm(map_start, map_end - map_start, CACHE_WRITEBACK);
+
+    map_print();
+
+    map_segment(&_start, &_erodata, 0);
+    map_segment(&_erodata, &_etext, PMAP_EXEC);
+    map_segment(&_etext, &_end, PMAP_WRITE);
+
+    switch_to_kernel_mappings();
 }
 
 void reclaim_loader_memory(void) {

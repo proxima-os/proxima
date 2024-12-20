@@ -5,8 +5,8 @@
 #include "cpu/irqvec.h"
 #include "cpu/lapic.h"
 #include "mem/heap.h"
+#include "mem/kvmm.h"
 #include "mem/pmap.h"
-#include "mem/pmm.h"
 #include "sched/mutex.h"
 #include "sched/sched.h"
 #include "string.h"
@@ -108,13 +108,16 @@ void init_pic(void) {
     for (struct acpi_entry_hdr *cur = madt->entries; cur < end; cur = (void *)cur + cur->length) {
         if (cur->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
             struct acpi_madt_ioapic *entry = (void *)cur;
-            extend_hhdm(entry->address, 12, CACHE_NONE);
 
             ioapic_t *apic = kalloc(sizeof(*apic));
             if (!apic) panic("failed to allocate ioapic data");
-
             memset(apic, 0, sizeof(*apic));
-            apic->regs = phys_to_virt(entry->address);
+
+            uintptr_t addr;
+            int error = kvmm_map_mmio(&addr, entry->address, 12, PMAP_WRITE, CACHE_NONE);
+            if (error) panic("failed to map ioapic regs (%d)", error);
+
+            apic->regs = (volatile void *)addr;
             apic->id = entry->id;
             apic->gsi_base = entry->gsi_base;
             apic->num_irqs = ((ioapic_read(apic, IOAPICVER) >> 16) & 0xff) + 1;

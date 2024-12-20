@@ -1,6 +1,6 @@
 #include "drv/hpet.h"
+#include "mem/kvmm.h"
 #include "mem/pmap.h"
-#include "mem/pmm.h"
 #include "uacpi/acpi.h"
 #include "uacpi/status.h"
 #include "uacpi/tables.h"
@@ -33,8 +33,11 @@ void init_hpet(void) {
 
     struct acpi_hpet *hpet = table.ptr;
     if (hpet->address.address_space_id != ACPI_AS_ID_SYS_MEM) panic("incorrect hpet address space");
-    extend_hhdm(hpet->address.address, 1024, CACHE_NONE);
-    hpet_regs = phys_to_virt(hpet->address.address);
+
+    uintptr_t addr;
+    int error = kvmm_map_mmio(&addr, hpet->address.address, 1024, PMAP_WRITE, CACHE_NONE);
+    if (error) panic("failed to map hpet regs (%d)", error);
+    hpet_regs = (volatile void *)addr;
 
     uacpi_table_unref(&table);
 

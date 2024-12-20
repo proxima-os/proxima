@@ -6,8 +6,8 @@
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
 #include "limine.h"
+#include "mem/kvmm.h"
 #include "mem/pmap.h"
-#include "mem/pmm.h"
 #include "uacpi/acpi.h"
 #include "uacpi/status.h"
 #include "uacpi/tables.h"
@@ -75,8 +75,10 @@ static void do_init_lapic(void) {
             }
         }
 
-        extend_hhdm(phys, 0x1000, CACHE_NONE);
-        xapic_regs = phys_to_virt(phys);
+        uintptr_t addr;
+        int error = kvmm_map_mmio(&addr, phys, 0x1000, PMAP_WRITE, CACHE_NONE);
+        if (error) panic("failed to map lapic regs (%d)", error);
+        xapic_regs = (volatile void *)addr;
     }
 
     lapic_write32(LAPIC_SPR, IRQ_SPURIOUS);

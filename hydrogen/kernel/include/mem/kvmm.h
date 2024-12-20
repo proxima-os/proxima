@@ -1,6 +1,7 @@
 #ifndef HYDROGEN_MEM_KVMM_H
 #define HYDROGEN_MEM_KVMM_H
 
+#include "mem/pmap.h"
 #include "sched/mutex.h"
 #include "util/list.h"
 #include <stdbool.h>
@@ -26,5 +27,9 @@ int vmem_add_range(vmem_t *vmem, size_t start, size_t size);
 bool vmem_alloc(vmem_t *vmem, size_t size, size_t *out);
 
 void vmem_free(vmem_t *vmem, size_t start, size_t size);
+
+int kvmm_map_mmio(uintptr_t *out, uint64_t phys, size_t size, int flags, cache_mode_t mode);
+
+void kvmm_unmap_mmio(uintptr_t addr, size_t size);
 
 #endif // HYDROGEN_MEM_KVMM_H

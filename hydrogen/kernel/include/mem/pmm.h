@@ -61,11 +61,11 @@ static inline void *phys_to_virt(uint64_t phys) {
     return hhdm_start + phys;
 }
 
-static inline page_t *virt_to_page(const volatile void *virt) {
+static inline page_t *virt_to_page(const void *virt) {
     return page_array + ((virt - hhdm_start) >> PAGE_SHIFT);
 }
 
-static inline uint64_t virt_to_phys(const volatile void *virt) {
+static inline uint64_t virt_to_phys(const void *virt) {
     return virt - hhdm_start;
 }
 

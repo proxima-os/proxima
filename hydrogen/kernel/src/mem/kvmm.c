@@ -1,6 +1,7 @@
 #include "mem/kvmm.h"
 #include "errno.h"
 #include "mem/heap.h"
+#include "mem/pmap.h"
 #include "mem/pmm.h"
 #include "sched/mutex.h"
 #include "string.h"
@@ -219,4 +220,34 @@ void vmem_free(vmem_t *vmem, size_t start, size_t size) {
     }
 
     mutex_unlock(&vmem->lock);
+}
+
+int kvmm_map_mmio(uintptr_t *out, uint64_t phys, size_t size, int flags, cache_mode_t mode) {
+    uint64_t offset = phys & PAGE_MASK;
+    uint64_t end = (phys + size + PAGE_MASK) & ~PAGE_MASK;
+    phys -= offset;
+    size = end - phys;
+
+    if (!vmem_alloc(&kvmm, size, out)) return ENOMEM;
+
+    int error = prepare_map(*out, size);
+    if (error) {
+        vmem_free(&kvmm, *out, size);
+        return error;
+    }
+
+    do_map(*out, phys, size, flags, mode);
+
+    *out += offset;
+    return 0;
+}
+
+void kvmm_unmap_mmio(uintptr_t addr, size_t size) {
+    uintptr_t offset = addr & PAGE_MASK;
+    uintptr_t end = (addr + size + PAGE_MASK) & ~PAGE_MASK;
+    addr -= offset;
+    size = end - addr;
+
+    unmap(addr, size);
+    vmem_free(&kvmm, addr, size);
 }

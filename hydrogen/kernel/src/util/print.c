@@ -2,8 +2,10 @@
 #include "asm/irq.h"
 #include "compiler.h"
 #include "limine.h"
+#include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "mem/pmm.h"
+#include "util/panic.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -57,7 +59,16 @@ void init_print(void) {
 
 void map_print(void) {
     if (framebuffer) {
-        extend_hhdm(virt_to_phys(framebuffer), fb_pitch * fb_height, CACHE_WRITE_COMBINE);
+        uintptr_t addr;
+        int error = kvmm_map_mmio(
+                &addr,
+                (uintptr_t)framebuffer - (uintptr_t)hhdm_start,
+                fb_pitch * fb_height,
+                PMAP_WRITE,
+                CACHE_WRITE_COMBINE
+        );
+        if (error) panic("failed to map framebuffer (%d)", error);
+        framebuffer = (volatile void *)addr;
     }
 }
 
