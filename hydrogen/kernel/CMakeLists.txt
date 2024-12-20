@@ -15,6 +15,7 @@ add_executable(hydrogen
     src/init/main.c
     src/init/main.S
     src/mem/heap.c
+    src/mem/kvmm.c
     src/mem/pmap.c
     src/mem/pmm.c
     src/mem/vheap.c

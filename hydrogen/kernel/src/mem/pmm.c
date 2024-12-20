@@ -1,5 +1,6 @@
 #include "mem/pmm.h"
 #include "limine.h"
+#include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "sched/mutex.h"
 #include "util/panic.h"
@@ -51,6 +52,16 @@ static void map_segment(const void *start, const void *end, int flags) {
     int error = prepare_map((uintptr_t)start, size);
     if (error) panic("failed to map kernel segment (%d)", error);
     do_map((uintptr_t)start, paddr, size, flags, CACHE_WRITEBACK);
+}
+
+static void add_vmm_range(uintptr_t start, uintptr_t end) {
+    start = (start + PAGE_MASK) & ~PAGE_MASK;
+    end = (end - PAGE_MASK) | PAGE_MASK;
+
+    if (start >= end) return;
+
+    int error = vmem_add_range(&kvmm, start, end - start + 1);
+    if (error) panic("failed to add range to kernel vmm (%d)", error);
 }
 
 void init_pmm(void) {
@@ -122,6 +133,14 @@ void init_pmm(void) {
     map_segment(&_etext, &_end, PMAP_WRITE);
 
     switch_to_kernel_mappings();
+
+    if (hhdm_start < &_start) {
+        add_vmm_range(MIN_KERNEL_VIRT_ADDR, (uintptr_t)hhdm_start - 1);
+        add_vmm_range((uintptr_t)&_end, UINTPTR_MAX);
+    } else {
+        add_vmm_range(MIN_KERNEL_VIRT_ADDR, (uintptr_t)&_start - 1);
+        add_vmm_range((uintptr_t)&_end, (uintptr_t)hhdm_start - 1);
+    }
 }
 
 void reclaim_loader_memory(void) {

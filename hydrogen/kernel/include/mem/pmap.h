@@ -7,6 +7,8 @@
 #define PMAP_WRITE 1
 #define PMAP_EXEC 2
 
+#define MIN_KERNEL_VIRT_ADDR 0xffff800000000000
+
 typedef enum {
     CACHE_WRITEBACK,
     CACHE_WRITETHROUGH,
