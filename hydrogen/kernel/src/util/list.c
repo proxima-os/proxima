@@ -28,7 +28,7 @@ void list_insert_before(list_t *list, list_node_t *before, list_node_t *value) {
     value->prev = before ? before->prev : list->last;
     value->next = before;
 
-    if (value->prev) before->prev->next = value;
+    if (value->prev) value->prev->next = value;
     else list->first = value;
 
     if (before) before->prev = value;
