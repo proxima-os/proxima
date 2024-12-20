@@ -6,6 +6,7 @@
 #include "drv/pic.h"
 #include "limine.h"
 #include "mem/heap.h"
+#include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "mem/pmm.h"
 #include "mem/vheap.h"
@@ -251,35 +252,55 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
 uacpi_status uacpi_kernel_raw_memory_read(uacpi_phys_addr address, uacpi_u8 byte_width, uacpi_u64 *out_value) {
     PROFILE_START;
 
-    extend_hhdm(address, byte_width, CACHE_WRITEBACK);
+    uintptr_t addr;
+    int error = kvmm_map_mmio(&addr, addr, byte_width, PMAP_WRITE, CACHE_WRITEBACK);
+    uacpi_status status;
 
-    switch (byte_width) {
-    case 1: *out_value = *(volatile uint8_t *)phys_to_virt(address); break;
-    case 2: *out_value = *(volatile uint16_t *)phys_to_virt(address); break;
-    case 4: *out_value = *(volatile uint32_t *)phys_to_virt(address); break;
-    case 8: *out_value = *(volatile uint64_t *)phys_to_virt(address); break;
-    default: PROFILE_END; return UACPI_STATUS_INVALID_ARGUMENT;
+    if (error == 0) {
+        status = UACPI_STATUS_OK;
+
+        switch (byte_width) {
+        case 1: *out_value = *(volatile uint8_t *)phys_to_virt(address); break;
+        case 2: *out_value = *(volatile uint16_t *)phys_to_virt(address); break;
+        case 4: *out_value = *(volatile uint32_t *)phys_to_virt(address); break;
+        case 8: *out_value = *(volatile uint64_t *)phys_to_virt(address); break;
+        default: status = UACPI_STATUS_INVALID_ARGUMENT; break;
+        }
+
+        kvmm_unmap_mmio(addr, byte_width);
+    } else {
+        status = UACPI_STATUS_OUT_OF_MEMORY;
     }
 
     PROFILE_END;
-    return UACPI_STATUS_OK;
+    return status;
 }
 
 uacpi_status uacpi_kernel_raw_memory_write(uacpi_phys_addr address, uacpi_u8 byte_width, uacpi_u64 in_value) {
     PROFILE_START;
 
-    extend_hhdm(address, byte_width, CACHE_WRITEBACK);
+    uintptr_t addr;
+    int error = kvmm_map_mmio(&addr, addr, byte_width, PMAP_WRITE, CACHE_WRITEBACK);
+    uacpi_status status;
 
-    switch (byte_width) {
-    case 1: *(volatile uint8_t *)phys_to_virt(address) = in_value; break;
-    case 2: *(volatile uint16_t *)phys_to_virt(address) = in_value; break;
-    case 4: *(volatile uint32_t *)phys_to_virt(address) = in_value; break;
-    case 8: *(volatile uint64_t *)phys_to_virt(address) = in_value; break;
-    default: PROFILE_END; return UACPI_STATUS_INVALID_ARGUMENT;
+    if (error == 0) {
+        status = UACPI_STATUS_OK;
+
+        switch (byte_width) {
+        case 1: *(volatile uint8_t *)phys_to_virt(address) = in_value; break;
+        case 2: *(volatile uint16_t *)phys_to_virt(address) = in_value; break;
+        case 4: *(volatile uint32_t *)phys_to_virt(address) = in_value; break;
+        case 8: *(volatile uint64_t *)phys_to_virt(address) = in_value; break;
+        default: status = UACPI_STATUS_INVALID_ARGUMENT; break;
+        }
+
+        kvmm_unmap_mmio(addr, byte_width);
+    } else {
+        status = UACPI_STATUS_OUT_OF_MEMORY;
     }
 
     PROFILE_END;
-    return UACPI_STATUS_OK;
+    return status;
 }
 
 static uacpi_status do_io_read(uacpi_io_addr address, uacpi_u8 byte_width, uacpi_u64 *out_value) {
@@ -413,15 +434,19 @@ uacpi_status uacpi_kernel_io_write(uacpi_handle handle, uacpi_size offset, uacpi
 void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
     PROFILE_START;
 
-    extend_hhdm(addr, len, CACHE_WRITEBACK);
-    void *ptr = phys_to_virt(addr);
+    uintptr_t vaddr;
+    int error = kvmm_map_mmio(&vaddr, addr, len, PMAP_WRITE, CACHE_WRITEBACK);
+    void *ptr = error == 0 ? (void *)vaddr : NULL;
 
     PROFILE_END;
     return ptr;
 }
 
-void uacpi_kernel_unmap(UNUSED void *addr, UNUSED uacpi_size len) {
+void uacpi_kernel_unmap(void *addr, uacpi_size len) {
     PROFILE_START;
+
+    kvmm_unmap_mmio((uintptr_t)addr, len);
+
     PROFILE_END;
 }
 
