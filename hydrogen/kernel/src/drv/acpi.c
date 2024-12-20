@@ -3,6 +3,7 @@
 #include "asm/irq.h"
 #include "asm/pio.h"
 #include "compiler.h"
+#include "drv/pci.h"
 #include "drv/pic.h"
 #include "limine.h"
 #include "mem/heap.h"
@@ -202,17 +203,17 @@ uacpi_status uacpi_kernel_pci_read(
         uacpi_u8 byte_width,
         uacpi_u64 *value
 ) {
-    // TODO: Use MCFG
-    if (address->segment != 0) panic("non-zero pci segment groups not supported");
-    if (offset > 256) panic("pci offset too large");
-
-    outl(0xcf8, 0x80000000 | (address->bus << 16) | (address->device << 11) | (address->function << 8) | (offset & ~3));
-    uint32_t raw_value = inl(0xcfc) >> ((offset & 3) * 8);
+    pci_config_t config;
+    int error = get_pci_config(
+            &config,
+            (pci_address_t){address->segment, address->bus, address->device, address->function}
+    );
+    if (error) return UACPI_STATUS_NOT_FOUND;
 
     switch (byte_width) {
-    case 1: *value = raw_value & 0xff; break;
-    case 2: *value = raw_value & 0xffff; break;
-    case 4: *value = raw_value; break;
+    case 1: *value = pci_readb(config, offset); break;
+    case 2: *value = pci_readw(config, offset); break;
+    case 4: *value = pci_readl(config, offset); break;
     default: return UACPI_STATUS_INVALID_ARGUMENT;
     }
 
@@ -225,25 +226,18 @@ uacpi_status uacpi_kernel_pci_write(
         uacpi_u8 byte_width,
         uacpi_u64 value
 ) {
-    // TODO: Use MCFG
-    if (address->segment != 0) panic("non-zero pci segment groups not supported");
-    if (offset > 256) panic("pci offset too large");
+    pci_config_t config;
+    int error = get_pci_config(
+            &config,
+            (pci_address_t){address->segment, address->bus, address->device, address->function}
+    );
+    if (error) return UACPI_STATUS_NOT_FOUND;
 
-    outl(0xcf8, 0x80000000 | (address->bus << 16) | (address->device << 11) | (address->function << 8) | (offset & ~3));
-
-    if (byte_width == 4) {
-        outl(0xcfc, value);
-    } else if (byte_width == 1 || byte_width == 2) {
-        uint32_t raw_value = inl(0xcfc);
-        uint32_t mask = (1ul << (byte_width * 8)) - 1;
-        int shift = (offset & 3) * 8;
-
-        raw_value &= ~(mask << shift);
-        raw_value |= (value & mask) << shift;
-
-        outl(0xcfc, raw_value);
-    } else {
-        return UACPI_STATUS_UNIMPLEMENTED;
+    switch (byte_width) {
+    case 1: pci_writeb(config, offset, value); break;
+    case 2: pci_writew(config, offset, value); break;
+    case 4: pci_writel(config, offset, value); break;
+    default: return UACPI_STATUS_INVALID_ARGUMENT;
     }
 
     return UACPI_STATUS_OK;

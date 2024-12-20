@@ -6,6 +6,7 @@
 #include "cpu/xsave.h"
 #include "drv/acpi.h"
 #include "drv/hpet.h"
+#include "drv/pci.h"
 #include "drv/pic.h"
 #include "limine.h"
 #include "mem/pmm.h"
@@ -26,6 +27,7 @@ static void init_process_func(UNUSED void *ctx) {
 }
 
 static void init_kernel(UNUSED void *ctx) {
+    init_pci_access();
     init_acpi_fully();
 
     proc_t *proc;

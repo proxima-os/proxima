@@ -151,11 +151,11 @@ void init_pmm(void) {
 
     extend_hhdm(map_start, map_end - map_start);
 
-    map_print();
-
     map_segment(&_start, &_erodata, 0);
     map_segment(&_erodata, &_etext, PMAP_EXEC);
     map_segment(&_etext, &_end, PMAP_WRITE);
+
+    map_print();
 
     switch_to_kernel_mappings();
 }

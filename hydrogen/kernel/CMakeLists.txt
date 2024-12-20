@@ -11,6 +11,7 @@ add_executable(hydrogen
     src/cpu/xsave.c
     src/drv/acpi.c
     src/drv/hpet.c
+    src/drv/pci.c
     src/drv/pic.c
     src/init/main.c
     src/init/main.S
