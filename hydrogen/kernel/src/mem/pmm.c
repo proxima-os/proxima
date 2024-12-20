@@ -1,4 +1,5 @@
 #include "mem/pmm.h"
+#include "cpu/cpu.h"
 #include "limine.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
@@ -17,6 +18,8 @@ static page_t *free_pages;
 static size_t avail_pages;
 static mutex_t pmm_lock;
 
+static uint64_t max_phys_addr;
+
 extern const void _start;
 extern const void _erodata;
 extern const void _etext;
@@ -30,6 +33,7 @@ static void free_regions(uint64_t type) {
         if (entry->type == type) {
             uint64_t aligned_start = (entry->base + PAGE_MASK) & ~PAGE_MASK;
             uint64_t aligned_end = (entry->base + entry->length) & ~PAGE_MASK;
+            if (aligned_start > max_phys_addr) aligned_end = max_phys_addr;
 
             if (aligned_start < aligned_end) {
                 page_t *page = phys_to_page(aligned_start);
@@ -75,8 +79,6 @@ void init_pmm(void) {
     hhdm_start = (void *)hhdm_req.response->offset;
     mmap = mmap_req.response;
 
-    uint64_t max_phys_addr = 0;
-
     for (uint64_t i = mmap->entry_count; i > 0; i--) {
         struct limine_memmap_entry *entry = mmap->entries[i - 1];
         if (entry->length == 0) continue;
@@ -88,6 +90,8 @@ void init_pmm(void) {
     }
 
     if (max_phys_addr == 0) panic("no usable regions in memory map");
+    if (max_phys_addr > cpu_paddr_mask) max_phys_addr = cpu_paddr_mask + 1;
+    max_phys_addr &= ~PAGE_MASK;
 
     size_t page_array_size = (max_phys_addr >> PAGE_SHIFT) * sizeof(page_t);
 

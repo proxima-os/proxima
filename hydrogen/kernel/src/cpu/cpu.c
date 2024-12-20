@@ -4,6 +4,7 @@
 #include "cpu/exc.h"
 #include "cpu/gdt.h"
 #include "cpu/idt.h"
+#include <stdint.h>
 
 #define CR0_CLEAR_MASK (CR0_EM | CR0_TS)
 #define CR0_SET_MASK (CR0_MP | CR0_NE | CR0_AM)
@@ -18,6 +19,7 @@ bool tsc_invariant;
 bool xsave_supported;
 bool fsgsbase_supported;
 bool smap_supported;
+uint64_t cpu_paddr_mask;
 
 void init_cpu(void) {
     write_cr0((read_cr0() & ~CR0_CLEAR_MASK) | CR0_SET_MASK);
@@ -63,6 +65,15 @@ void init_cpu(void) {
 
     if (try_cpuid(0x80000007, &eax, &ebx, &ecx, &edx)) {
         tsc_invariant = edx & (1u << 8);
+    }
+
+    if (try_cpuid(0x80000008, &eax, &ebx, &ecx, &edx)) {
+        int shift = eax & 0xff;
+
+        if (shift < 64) cpu_paddr_mask = (1ul << shift) - 1;
+        else cpu_paddr_mask = UINT64_MAX;
+    } else {
+        cpu_paddr_mask = (1ul << 36) - 1;
     }
 
     write_cr4(cr4);

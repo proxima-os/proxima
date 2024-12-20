@@ -131,6 +131,9 @@ void do_map(uintptr_t vaddr, uint64_t paddr, size_t size, int flags, cache_mode_
     uintptr_t end = vaddr + (size - 1);
     ASSERT(end > vaddr);
 
+    ASSERT(paddr < paddr + (size - 1));
+    ASSERT(paddr + (size - 1) <= cpu_paddr_mask);
+
     size_t l4i_start = (vaddr >> 39) & 511;
     size_t l3i_start = (vaddr >> 30) & 511;
     size_t l2i_start = (vaddr >> 21) & 511;
