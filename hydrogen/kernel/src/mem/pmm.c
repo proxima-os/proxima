@@ -142,14 +142,14 @@ void init_pmm(void) {
         if (entry->length == 0) continue;
 
         if (map_end != entry->base) {
-            extend_hhdm(map_start, map_end - map_start, CACHE_WRITEBACK);
+            extend_hhdm(map_start, map_end - map_start);
             map_start = map_end = entry->base;
         }
 
         map_end += length;
     }
 
-    extend_hhdm(map_start, map_end - map_start, CACHE_WRITEBACK);
+    extend_hhdm(map_start, map_end - map_start);
 
     map_print();
 

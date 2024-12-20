@@ -40,7 +40,7 @@ void unmap(uintptr_t vaddr, size_t size);
 // Note that the affected area MUST have been mapped by alloc_and_map.
 void unmap_and_free(uintptr_t vaddr, size_t size);
 
-// Extends the HHDM to cover a new range. If any part of the given range is already mapped, the existing mappings stay.
-void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode);
+// Extends the HHDM to cover a new range
+void extend_hhdm(uint64_t paddr, size_t size);
 
 #endif // HYDROGEN_MEM_PMAP_H

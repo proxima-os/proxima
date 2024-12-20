@@ -461,7 +461,7 @@ void unmap_and_free(uintptr_t vaddr, size_t size) {
     mutex_unlock(&kernel_pt_lock);
 }
 
-void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
+void extend_hhdm(uint64_t paddr, size_t size) {
     if (size == 0) return;
 
     uint64_t pend = (paddr + size + 0xfff) & ~0xfff;
@@ -482,13 +482,10 @@ void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
     size_t l2i_end = 511;
     size_t l1i_end = 511;
 
-    uint64_t base_flags = PTE_DIRTY | PTE_ACCESSED | ((mode & 3) << 3) | PTE_WRITABLE | PTE_PRESENT;
+    uint64_t pte = paddr | PTE_DIRTY | PTE_ACCESSED | PTE_WRITABLE | PTE_PRESENT;
 
-    if (pg_supported) base_flags |= PTE_GLOBAL;
-    if (nx_supported) base_flags |= PTE_NX;
-
-    uint64_t norm_flags = ((mode & 4) << 5) | base_flags;
-    uint64_t huge_flags = ((mode & 4) << 10) | PTE_HUGE | base_flags;
+    if (pg_supported) pte |= PTE_GLOBAL;
+    if (nx_supported) pte |= PTE_NX;
 
     uint64_t *l4 = kernel_pt;
     mutex_lock(&kernel_pt_lock);
@@ -515,9 +512,10 @@ void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
 
             if (l3e) {
                 l2 = phys_to_virt(l3e & PTE_ADDR);
-            } else if (gb_pages_supported && l2i_start == 0 && l2i_end == 511 && (paddr & 0x3fffffff) == 0) {
-                if (l3[l3i] == 0) l3[l3i] = paddr | huge_flags;
-                paddr += 0x40000000;
+            } else if (gb_pages_supported && l2i_start == 0 && l2i_end == 511 && (pte & (PTE_ADDR & 0x3fffffff)) == 0) {
+                ASSERT(l3[l3i] == 0);
+                l3[l3i] = pte | PTE_HUGE;
+                pte += 0x40000000;
                 continue;
             } else {
                 l2 = alloc_table();
@@ -533,9 +531,10 @@ void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
 
                 if (l2e) {
                     l1 = phys_to_virt(l2e & PTE_ADDR);
-                } else if (l1i_start == 0 && l1i_end == 511 && (paddr & 0x1fffff) == 0) {
-                    if (l2[l2i] == 0) l2[l2i] = paddr | huge_flags;
-                    paddr += 0x200000;
+                } else if (l1i_start == 0 && l1i_end == 511 && (pte & (PTE_ADDR & 0x1fffff)) == 0) {
+                    ASSERT(l2[l2i] == 0);
+                    l2[l2i] = pte | PTE_HUGE;
+                    pte += 0x200000;
                     continue;
                 } else {
                     l1 = alloc_table();
@@ -544,8 +543,9 @@ void extend_hhdm(uint64_t paddr, size_t size, cache_mode_t mode) {
                 }
 
                 for (size_t l1i = l1i_start; l1i <= l1i_end; l1i++) {
-                    if (l1[l1i] == 0) l1[l1i] = paddr | norm_flags;
-                    paddr += 0x1000;
+                    ASSERT(l1[l1i] == 0);
+                    l1[l1i] = pte;
+                    pte += 0x1000;
                 }
 
                 l1i_start = 0;
