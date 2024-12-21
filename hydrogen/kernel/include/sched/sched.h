@@ -65,6 +65,7 @@ void init_sched(void);
 
 void sched_yield(void);
 
+// note: irqs *can* be enabled while preemption is disabled
 void disable_preempt(void);
 
 void enable_preempt(void);

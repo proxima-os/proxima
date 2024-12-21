@@ -224,12 +224,14 @@ void sched_yield(void) {
 }
 
 void disable_preempt(void) {
-    preempt_level += 1;
+    __atomic_fetch_add(&preempt_level, 1, __ATOMIC_ACQUIRE);
 }
 
 void enable_preempt(void) {
     if (--preempt_level == 0) {
+        irq_state_t state = save_disable_irq();
         if (current_task->state != TASK_RUNNING) do_yield(false);
+        restore_irq(state);
     }
 }
 
