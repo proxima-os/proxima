@@ -2,7 +2,7 @@
 #include "asm/cpuid.h"
 #include "asm/cr.h"
 #include "cpu/cpu.h"
-#include "mem/heap.h"
+#include "mem/vheap.h"
 #include "sched/sched.h"
 #include "string.h"
 #include "util/panic.h"
@@ -46,7 +46,7 @@ void init_xsave(void) {
     detect_xsave();
     printk("xsave: context is %U bytes (style %d)\n", ctx_size, ctx_style);
 
-    current_task->xsave_area = kalloc(ctx_size);
+    current_task->xsave_area = vmalloc(ctx_size);
     if (!current_task->xsave_area) panic("failed to allocate xsave area for idle task");
     memset(current_task->xsave_area, 0, ctx_size);
     xreset();
@@ -61,7 +61,7 @@ static void do_xsave(void *ptr) {
 }
 
 void *alloc_xsave(void) {
-    void *ptr = kalloc(ctx_size);
+    void *ptr = vmalloc(ctx_size);
 
     if (ptr) {
         if (ctx_style != CTX_FXSAVE) {
@@ -76,7 +76,7 @@ void *alloc_xsave(void) {
 }
 
 void free_xsave(void *ptr) {
-    kfree(ptr);
+    vmfree(ptr, ctx_size);
 }
 
 void xsave(void) {

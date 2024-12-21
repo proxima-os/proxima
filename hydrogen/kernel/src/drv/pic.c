@@ -4,9 +4,9 @@
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
 #include "cpu/lapic.h"
-#include "mem/heap.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
+#include "mem/vheap.h"
 #include "sched/mutex.h"
 #include "sched/sched.h"
 #include "string.h"
@@ -109,7 +109,7 @@ void init_pic(void) {
         if (cur->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
             struct acpi_madt_ioapic *entry = (void *)cur;
 
-            ioapic_t *apic = kalloc(sizeof(*apic));
+            ioapic_t *apic = vmalloc(sizeof(*apic));
             if (!apic) panic("failed to allocate ioapic data");
             memset(apic, 0, sizeof(*apic));
 

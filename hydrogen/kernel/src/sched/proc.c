@@ -1,7 +1,7 @@
 #include "sched/proc.h"
 #include "asm/irq.h"
 #include "errno.h"
-#include "mem/heap.h"
+#include "mem/vheap.h"
 #include "sched/mutex.h"
 #include "sched/sched.h"
 #include "string.h"
@@ -35,7 +35,7 @@ void proc_deref(proc_t *proc) {
         idmap_free(&proc_map, proc->id);
         mutex_unlock(&proc_map_lock);
 
-        kfree(proc);
+        vmfree(proc, sizeof(*proc));
         proc = parent;
     }
 }
@@ -70,13 +70,13 @@ int create_thread(task_t **out, task_func_t func, void *ctx) {
 }
 
 int create_process(proc_t **out, task_func_t func, void *ctx) {
-    proc_t *proc = kalloc(sizeof(*proc));
+    proc_t *proc = vmalloc(sizeof(*proc));
     if (!proc) return ENOMEM;
 
     task_t *task;
     int error = sched_create(&task, func, ctx);
     if (error) {
-        kfree(task);
+        vmfree(proc, sizeof(*proc));
         return error;
     }
 
@@ -86,7 +86,7 @@ int create_process(proc_t **out, task_func_t func, void *ctx) {
 
     if (id < 0) {
         task_deref(task);
-        kfree(proc);
+        vmfree(proc, sizeof(*proc));
         return -id;
     }
 

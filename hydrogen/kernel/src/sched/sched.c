@@ -4,8 +4,8 @@
 #include "cpu/tss.h"
 #include "cpu/xsave.h"
 #include "errno.h"
-#include "mem/heap.h"
 #include "mem/memlayout.h"
+#include "mem/vheap.h"
 #include "sched/mutex.h"
 #include "sched/proc.h"
 #include "string.h"
@@ -81,7 +81,7 @@ static void free_resources(task_t *task) {
     task->state = TASK_ZOMBIE;
 
     free_xsave(task->xsave_area);
-    kfree((void *)task->kernel_stack - KERNEL_STACK_SIZE);
+    vmfree((void *)task->kernel_stack - KERNEL_STACK_SIZE, sizeof(*task));
 
     task->xsave_area = NULL;
     task->kernel_stack = 0;
@@ -312,19 +312,19 @@ _Noreturn void sched_init_task(task_func_t func, void *ctx, task_t *task) {
 extern const void task_init_stub;
 
 int sched_create(task_t **out, task_func_t func, void *ctx) {
-    task_t *task = kalloc(sizeof(*task));
+    task_t *task = vmalloc(sizeof(*task));
     if (!task) return ENOMEM;
 
     void *xsave = alloc_xsave();
     if (!xsave) {
-        kfree(task);
+        vmfree(task, sizeof(*task));
         return ENOMEM;
     }
 
-    void *stack = kalloc(KERNEL_STACK_SIZE);
+    void *stack = vmalloc(KERNEL_STACK_SIZE);
     if (!stack) {
         free_xsave(xsave);
-        kfree(task);
+        vmfree(task, sizeof(*task));
         return ENOMEM;
     }
 
@@ -356,7 +356,7 @@ void task_ref(task_t *task) {
 void task_deref(task_t *task) {
     if (__atomic_fetch_sub(&task->references, 1, __ATOMIC_ACQ_REL) == 1) {
         if (task->state == TASK_EMBRYO) free_resources(task);
-        kfree(task);
+        vmfree(task, sizeof(*task));
     }
 }
 

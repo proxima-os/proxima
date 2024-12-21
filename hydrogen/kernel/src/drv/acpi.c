@@ -97,7 +97,7 @@ void init_acpi_tables(void) {
     if (!rsdp_req.response) panic("no response to rsdp request");
     rsdp_addr = rsdp_req.response->address;
 
-    void *buf = kalloc(EARLY_TABLE_BUF_SIZE);
+    void *buf = vmalloc(EARLY_TABLE_BUF_SIZE);
     if (!buf) panic("failed to allocate buffer for early table access");
 
     uacpi_status ret = uacpi_setup_early_table_access(buf, EARLY_TABLE_BUF_SIZE);
@@ -330,23 +330,23 @@ void uacpi_kernel_sleep(uacpi_u64 msec) {
 }
 
 uacpi_handle uacpi_kernel_create_mutex(void) {
-    mutex_t *mutex = kalloc(sizeof(*mutex));
+    mutex_t *mutex = vmalloc(sizeof(*mutex));
     if (mutex) memset(mutex, 0, sizeof(*mutex));
     return mutex;
 }
 
 void uacpi_kernel_free_mutex(uacpi_handle handle) {
-    kfree(handle);
+    vmfree(handle, sizeof(mutex_t));
 }
 
 uacpi_handle uacpi_kernel_create_event(void) {
-    semaphore_t *sema = kalloc(sizeof(*sema));
+    semaphore_t *sema = vmalloc(sizeof(*sema));
     if (sema) memset(sema, 0, sizeof(*sema));
     return sema;
 }
 
 void uacpi_kernel_free_event(uacpi_handle handle) {
-    kfree(handle);
+    vmfree(handle, sizeof(semaphore_t));
 }
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void) {
@@ -413,7 +413,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
         uacpi_handle ctx,
         uacpi_handle *out_irq_handle
 ) {
-    acpi_irq_ctx_t *context = kalloc(sizeof(*context));
+    acpi_irq_ctx_t *context = vmalloc(sizeof(*context));
     if (!context) {
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
@@ -444,16 +444,17 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(UNUSED uacpi_interrupt_han
     pic_reset_isa(ctx->irq);
     pic_uninstall_vector(ctx->vector, acpi_irq_handler);
     free_irq_vectors(ctx->vector, 1);
+    vmfree(ctx, sizeof(*ctx));
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_handle uacpi_kernel_create_spinlock(void) {
-    return kalloc(0);
+    return vmalloc(0);
 }
 
 void uacpi_kernel_free_spinlock(uacpi_handle handle) {
-    kfree(handle);
+    vmfree(handle, 0);
 }
 
 uacpi_cpu_flags uacpi_kernel_lock_spinlock(UNUSED uacpi_handle handle) {

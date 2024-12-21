@@ -1,20 +1,21 @@
 #include "util/xarray.h"
 #include "errno.h"
-#include "mem/heap.h"
+#include "mem/vheap.h"
 #include "string.h"
 #include <stdbool.h>
 
 #define LEVEL_SHIFT 6 // 64 entries per level
-#define LEVEL_SIZE (1ul << LEVEL_SHIFT)
-#define LEVEL_MASK (LEVEL_SIZE - 1)
+#define LEVEL_COUNT (1ul << LEVEL_SHIFT)
+#define LEVEL_MASK (LEVEL_COUNT - 1)
+#define LEVEL_SIZE (LEVEL_COUNT * sizeof(void *))
 
 static void **get_elem_ptr(xarray_t *arr, size_t index, bool alloc) {
     while (arr->levels == 0 || ((index >> (arr->levels * LEVEL_SHIFT)) & ~LEVEL_MASK)) {
         if (!alloc) return NULL;
 
-        void **table = kalloc(LEVEL_SIZE * sizeof(void *));
+        void **table = vmalloc(LEVEL_SIZE);
         if (!table) return NULL;
-        memset(table, 0, LEVEL_SIZE * sizeof(void *));
+        memset(table, 0, LEVEL_SIZE);
 
         table[0] = arr->data;
         arr->data = table;
@@ -29,9 +30,9 @@ static void **get_elem_ptr(xarray_t *arr, size_t index, bool alloc) {
 
         if (ptr == NULL) {
             if (!alloc) return NULL;
-            ptr = kalloc(LEVEL_SIZE * sizeof(void *));
+            ptr = vmalloc(LEVEL_SIZE);
             if (!ptr) return NULL;
-            memset(ptr, 0, LEVEL_SIZE * sizeof(void *));
+            memset(ptr, 0, LEVEL_SIZE);
             table[idx] = ptr;
         }
 
