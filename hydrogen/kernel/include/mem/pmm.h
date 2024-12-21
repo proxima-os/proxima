@@ -15,6 +15,7 @@ typedef union page {
         size_t count;
     } free;
     struct {
+        size_t allocated;
         int order;
     } heap;
 } page_t;
