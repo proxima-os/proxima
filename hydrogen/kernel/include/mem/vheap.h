@@ -5,6 +5,6 @@
 
 void *vmalloc(size_t size);
 
-void vmfree(void *ptr);
+void vmfree(void *ptr, size_t size);
 
 #endif // HYDROGEN_MEM_VHEAP_H

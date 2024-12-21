@@ -52,32 +52,20 @@ static void vmfree_large(void *ptr, size_t size) {
 
 void *vmalloc(size_t size) {
     if (size == 0) return ZERO_PTR;
-    size += META_OFFSET;
-
-    alloc_meta_t *meta;
 
     if (size <= PAGE_SIZE) {
-        meta = kalloc(size);
+        return kalloc(size);
     } else {
-        meta = vmalloc_large(size);
-    }
-
-    if (meta != NULL) {
-        meta->size = size;
-        return (void *)meta + META_OFFSET;
-    } else {
-        return NULL;
+        return vmalloc_large(size);
     }
 }
 
-void vmfree(void *ptr) {
+void vmfree(void *ptr, size_t size) {
     if (ptr == NULL || ptr == ZERO_PTR) return;
 
-    alloc_meta_t *meta = ptr - META_OFFSET;
-
-    if (meta->size <= PAGE_SIZE) {
-        kfree(meta);
+    if (size <= PAGE_SIZE) {
+        kfree(ptr);
     } else {
-        vmfree_large(meta, meta->size);
+        vmfree_large(ptr, size);
     }
 }
