@@ -28,7 +28,7 @@ void proc_ref(proc_t *proc) {
 }
 
 void proc_deref(proc_t *proc) {
-    while (__atomic_fetch_sub(&proc->references, 1, __ATOMIC_ACQUIRE) == 1) {
+    while (__atomic_fetch_sub(&proc->references, 1, __ATOMIC_ACQ_REL) == 1) {
         proc_t *parent = proc->parent;
 
         mutex_lock(&proc_map_lock);
