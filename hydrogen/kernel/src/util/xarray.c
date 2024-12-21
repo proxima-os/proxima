@@ -42,6 +42,26 @@ static void **get_elem_ptr(xarray_t *arr, size_t index, bool alloc) {
     return &table[index & LEVEL_MASK];
 }
 
+static void do_clear(void **table, int level, void (*entry_handler)(void *, void *), void *ctx) {
+    for (size_t i = 0; i < LEVEL_COUNT; i++) {
+        void *ptr = table[i];
+
+        if (level == 0) {
+            entry_handler(ptr, ctx);
+        } else {
+            do_clear(ptr, level - 1, entry_handler, ctx);
+        }
+    }
+}
+
+void xarray_clear(xarray_t *arr, void (*entry_handler)(void *, void *), void *ctx) {
+    if (arr->levels != 0) {
+        do_clear(arr->data, arr->levels - 1, entry_handler, ctx);
+        arr->data = NULL;
+        arr->levels = 0;
+    }
+}
+
 void *xarray_get(xarray_t *arr, size_t index) {
     void **ptr = get_elem_ptr(arr, index, false);
     return ptr ? *ptr : NULL;
