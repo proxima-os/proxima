@@ -124,6 +124,29 @@ int vmem_add_range(vmem_t *vmem, size_t start, size_t size) {
     return 0;
 }
 
+static struct range_info *get_range_for_alloc(vmem_t *vmem, size_t size) {
+    int min_order = get_alloc_order(size);
+
+    for (int i = min_order; i < 64; i++) {
+        struct range_info *info = node_to_obj(struct range_info, snode, list_remove_head(&vmem->free_lists[i]));
+        if (info != NULL) return info;
+    }
+
+    if (min_order > 1 && size != (1ul << min_order)) {
+        // The previous free list might have a range that is big enough to allocate from, since a free list contains
+        // 2^i <= size < 2^(i + 1) and min_order is the i in 2^(i - 1) < size <= 2^i
+
+        list_foreach(vmem->free_lists[min_order - 1], struct range_info, snode, cur) {
+            if (cur->size >= size) {
+                list_remove(&vmem->free_lists[min_order - 1], &cur->snode);
+                return cur;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 bool vmem_alloc(vmem_t *vmem, size_t size, size_t *out) {
     if (size == 0) {
         *out = 0;
@@ -134,12 +157,7 @@ bool vmem_alloc(vmem_t *vmem, size_t size, size_t *out) {
 
     mutex_lock(&vmem->lock);
 
-    struct range_info *info;
-
-    for (int i = get_alloc_order(size); i < 64; i++) {
-        info = node_to_obj(struct range_info, snode, list_remove_head(&vmem->free_lists[i]));
-        if (info != NULL) break;
-    }
+    struct range_info *info = get_range_for_alloc(vmem, size);
 
     if (info == NULL) {
         mutex_unlock(&vmem->lock);
