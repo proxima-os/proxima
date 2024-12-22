@@ -51,7 +51,7 @@ void init_cpu(void) {
         if (ebx & (1u << 7)) cr4 |= CR4_SMEP;
 
         if (ebx & (1u << 20)) {
-            cr4 |= CR4_SMAP;
+            cr4 &= ~CR4_SMAP;
             smap_supported = true;
         }
 
