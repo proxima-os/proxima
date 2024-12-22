@@ -8,6 +8,7 @@
 #include "cpu/irqvec.h"
 #include "cpu/lapic.h"
 #include "drv/hpet.h"
+#include "limine.h"
 #include "sched/sched.h"
 #include "util/panic.h"
 #include "util/print.h"
@@ -19,6 +20,7 @@ uint64_t boot_tsc;
 timeconv_t tsc2ns_conv;
 timeconv_t ns2tsc_conv;
 
+static int64_t boot_timestamp;
 static uint64_t lapic_freq;
 static timeconv_t tsc2lapic_conv;
 
@@ -203,6 +205,12 @@ static void handle_timer_irq(UNUSED idt_frame_t *frame) {
 }
 
 void init_time(void) {
+    static LIMINE_REQ struct limine_boot_time_request btime_req = {.id = LIMINE_BOOT_TIME_REQUEST};
+
+    if (btime_req.response) {
+        boot_timestamp = btime_req.response->boot_time * 1000000000;
+    }
+
     init_tsc();
     idt_install(IRQ_TIMER, handle_timer_irq);
 
@@ -317,4 +325,12 @@ timeconv_t timeconv_create(uint64_t src_freq, uint64_t dst_freq) {
             .multiplier = multiplier,
             .shift = p,
     };
+}
+
+int64_t get_timestamp(void) {
+    return __atomic_load_n(&boot_timestamp, __ATOMIC_ACQUIRE) + timeconv_apply(tsc2ns_conv, read_time());
+}
+
+void set_timestamp(int64_t time) {
+    __atomic_store_n(&boot_timestamp, time - timeconv_apply(tsc2ns_conv, read_time()), __ATOMIC_RELEASE);
 }

@@ -49,11 +49,11 @@ _Noreturn void kernel_main(void) {
     init_xsave();
     init_acpi_tables();
     init_lapic();
-    reclaim_loader_memory();
     init_pic();
     enable_irq();
     init_hpet();
     init_time();
+    reclaim_loader_memory();
     init_proc();
     init_sched();
 
