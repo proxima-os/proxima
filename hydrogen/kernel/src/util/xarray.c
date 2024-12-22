@@ -1,5 +1,5 @@
 #include "util/xarray.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "mem/vheap.h"
 #include "string.h"
 #include <stdbool.h>
@@ -75,10 +75,10 @@ int xarray_put(xarray_t *arr, size_t index, void *value) {
             *ptr = value;
             return 0;
         } else {
-            return EBUSY;
+            return ERR_ALREADY_EXISTS;
         }
     } else {
-        return ENOMEM;
+        return ERR_OUT_OF_MEMORY;
     }
 }
 
@@ -91,6 +91,6 @@ int xarray_replace(xarray_t *arr, size_t index, void **value) {
         *ptr = wanted;
         return 0;
     } else {
-        return wanted != NULL ? ENOMEM : 0;
+        return wanted != NULL ? ERR_OUT_OF_MEMORY : 0;
     }
 }

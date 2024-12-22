@@ -36,6 +36,12 @@ static inline uint64_t read_time(void) {
     return __builtin_ia32_rdtsc() - boot_tsc;
 }
 
+// returns current posix time in nanoseconds
+int64_t get_timestamp(void);
+
+// sets the current posix time in nanoseconds
+void set_timestamp(int64_t time);
+
 static inline uint64_t timeconv_apply(timeconv_t conv, uint64_t value) {
     return ((__uint128_t)value * conv.multiplier) >> conv.shift;
 }

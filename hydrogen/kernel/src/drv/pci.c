@@ -1,5 +1,5 @@
 #include "drv/pci.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "mem/heap.h"
 #include "mem/kvmm.h"
 #include "mem/vheap.h"
@@ -71,7 +71,7 @@ int get_pci_config(pci_config_t *out, pci_address_t address) {
         }
     }
 
-    return ENOENT;
+    return ERR_NOT_FOUND;
 }
 
 uint8_t pci_readb(pci_config_t config, unsigned offset) {

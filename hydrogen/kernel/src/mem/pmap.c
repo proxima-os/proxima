@@ -1,7 +1,7 @@
 #include "mem/pmap.h"
 #include "asm/cr.h"
 #include "cpu/cpu.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "mem/heap.h"
 #include "mem/pmm.h"
 #include "sched/mutex.h"
@@ -54,11 +54,11 @@ void switch_to_kernel_mappings(void) {
 }
 
 int prepare_map(uintptr_t vaddr, size_t size) {
-    if ((vaddr | size) & 0xfff) return EINVAL;
+    if ((vaddr | size) & 0xfff) return ERR_INVALID_ARGUMENT;
     if (size == 0) return 0;
 
     uintptr_t end = vaddr + (size - 1);
-    if (end < vaddr) return EINVAL;
+    if (end < vaddr) return ERR_INVALID_ARGUMENT;
 
     size_t l4i_start = (vaddr >> 39) & 511;
     size_t l3i_start = (vaddr >> 30) & 511;
@@ -68,7 +68,7 @@ int prepare_map(uintptr_t vaddr, size_t size) {
     size_t l3i_end = 511;
     size_t l2i_end = 511;
 
-    if ((l4i_start & 256) != (l4i_end & 256)) return EINVAL;
+    if ((l4i_start & 256) != (l4i_end & 256)) return ERR_INVALID_ARGUMENT;
 
     uint64_t *l4 = kernel_pt;
     mutex_lock(&kernel_pt_lock);
@@ -121,7 +121,7 @@ int prepare_map(uintptr_t vaddr, size_t size) {
     return 0;
 err:
     mutex_unlock(&kernel_pt_lock);
-    return ENOMEM;
+    return ERR_OUT_OF_MEMORY;
 }
 
 void do_map(uintptr_t vaddr, uint64_t paddr, size_t size, int flags, cache_mode_t mode) {

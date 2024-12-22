@@ -3,7 +3,7 @@
 #include "compiler.h"
 #include "cpu/tss.h"
 #include "cpu/xsave.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "mem/memlayout.h"
 #include "mem/vheap.h"
 #include "sched/mutex.h"
@@ -315,19 +315,19 @@ extern const void task_init_stub;
 
 int sched_create(task_t **out, task_func_t func, void *ctx) {
     task_t *task = vmalloc(sizeof(*task));
-    if (!task) return ENOMEM;
+    if (!task) return ERR_OUT_OF_MEMORY;
 
     void *xsave = alloc_xsave();
     if (!xsave) {
         vmfree(task, sizeof(*task));
-        return ENOMEM;
+        return ERR_OUT_OF_MEMORY;
     }
 
     void *stack = vmalloc(KERNEL_STACK_SIZE);
     if (!stack) {
         free_xsave(xsave);
         vmfree(task, sizeof(*task));
-        return ENOMEM;
+        return ERR_OUT_OF_MEMORY;
     }
 
     memset(task, 0, sizeof(*task));

@@ -8,6 +8,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef struct {
+    size_t references;
+    uint32_t uid;
+    uint32_t gid;
+} identity_t;
+
 typedef struct proc {
     size_t references;
     proc_t *parent;
@@ -16,6 +22,9 @@ typedef struct proc {
     mutex_t lock;
     list_t tasks;
     list_t waiting_tasks;
+
+    identity_t *identity;
+    uint32_t umask;
 } proc_t;
 
 extern proc_t kernel_proc;
@@ -37,5 +46,13 @@ int create_process(proc_t **out, task_func_t func, void *ctx);
 
 // waits until all tasks in `proc` exit, `timeout` has the same meaning as in `sched_stop`
 bool proc_wait(proc_t *proc, uint64_t timeout);
+
+identity_t *get_identity(void);
+
+void ident_ref(identity_t *ident);
+
+void ident_deref(identity_t *ident);
+
+void set_identity(identity_t *identity);
 
 #endif // HYDROGEN_SCHED_PROC_H

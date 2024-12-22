@@ -1,5 +1,5 @@
 #include "mem/kvmm.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "mem/heap.h"
 #include "mem/pmap.h"
 #include "mem/pmm.h"
@@ -108,7 +108,7 @@ int vmem_add_range(vmem_t *vmem, size_t start, size_t size) {
         struct range_info *info = kalloc(sizeof(*info));
         if (!info) {
             mutex_unlock(&vmem->lock);
-            return ENOMEM;
+            return ERR_OUT_OF_MEMORY;
         }
         memset(info, 0, sizeof(*info));
         info->start = start;
@@ -245,7 +245,7 @@ int kvmm_map_mmio(uintptr_t *out, uint64_t phys, size_t size, int flags, cache_m
     phys -= offset;
     size = end - phys;
 
-    if (!vmem_alloc(&kvmm, size, out)) return ENOMEM;
+    if (!vmem_alloc(&kvmm, size, out)) return ERR_OUT_OF_MEMORY;
 
     int error = prepare_map(*out, size);
     if (error) {

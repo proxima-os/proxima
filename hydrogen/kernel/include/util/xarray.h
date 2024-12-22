@@ -14,11 +14,11 @@ void xarray_clear(xarray_t *arr, void (*entry_handler)(void *, void *), void *ct
 // Returns the value at index, or NULL if the index is invalid
 void *xarray_get(xarray_t *arr, size_t index);
 
-// Inserts value at index. Returns ENOMEM if out of memory and EBUSY if the index is in use.
+// Inserts value at index. Returns ERR_OUT_OF_MEMORY if out of memory and ERR_ALREADY_EXISTS if the index is in use.
 int xarray_put(xarray_t *arr, size_t index, void *value);
 
 // Replaces the value at index with *value, and writes the old value to *value.
-// Returns ENOMEM if out of memory. If *value is NULL, this is always successful.
+// Returns ERR_OUT_OF_MEMORY if out of memory. If *value is NULL, this is always successful.
 int xarray_replace(xarray_t *arr, size_t index, void **value);
 
 // Removes the value at index and returns it

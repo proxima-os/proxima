@@ -1,6 +1,6 @@
 #include "sched/proc.h"
 #include "asm/irq.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "mem/vheap.h"
 #include "sched/mutex.h"
 #include "sched/sched.h"
@@ -21,6 +21,12 @@ void init_proc(void) {
 
     proc_ref(&kernel_proc);
     list_insert_tail(&kernel_proc.tasks, &current_task->proc_node);
+
+    identity_t *ident = vmalloc(sizeof(*ident));
+    if (!ident) panic("failed to allocate identity for kernel process");
+    memset(ident, 0, sizeof(*ident));
+    ident->references = 1;
+    kernel_proc.identity = ident;
 }
 
 void proc_ref(proc_t *proc) {
@@ -71,7 +77,7 @@ int create_thread(task_t **out, task_func_t func, void *ctx) {
 
 int create_process(proc_t **out, task_func_t func, void *ctx) {
     proc_t *proc = vmalloc(sizeof(*proc));
-    if (!proc) return ENOMEM;
+    if (!proc) return ERR_OUT_OF_MEMORY;
 
     task_t *task;
     int error = sched_create(&task, func, ctx);
@@ -94,6 +100,7 @@ int create_process(proc_t **out, task_func_t func, void *ctx) {
     proc->references = 2;
     proc->parent = current_proc;
     proc->id = id;
+    proc->identity = get_identity();
 
     proc_ref(current_proc); // for proc->parent
 
@@ -118,4 +125,43 @@ bool proc_wait(proc_t *proc, uint64_t timeout) {
 
     restore_irq(state);
     return success;
+}
+
+// identities are managed with an rcu-like system: any given identity_t object is immutable except for its ref count,
+// preemption is disabled while initially getting the current identity and re-enabled after incrementing its ref count,
+// changing identity involves copying the current one, xchg'ing it with the old pointer, and decrementing the ref count
+// of the old one
+//
+// it'd have been simpler to just use a mutex, but querying the identity is incredibly common and changing it is
+// incredibly uncommon, so this is better for performance
+identity_t *get_identity(void) {
+    disable_preempt();
+    identity_t *ident = current_proc->identity;
+    ident->references += 1;
+    enable_preempt();
+    return ident;
+}
+
+void ident_ref(identity_t *ident) {
+    __atomic_fetch_add(&ident->references, 1, __ATOMIC_ACQUIRE);
+}
+
+void ident_deref(identity_t *ident) {
+    if (__atomic_fetch_sub(&ident->references, 1, __ATOMIC_ACQ_REL) == 1) {
+        vmfree(ident, sizeof(*ident));
+    }
+}
+
+void set_identity(identity_t *identity) {
+    ident_deref(__atomic_exchange_n(&current_proc->identity, identity, __ATOMIC_ACQ_REL));
+    ident_ref(identity);
+}
+
+identity_t *clone_identity(void) {
+    identity_t *ident = vmalloc(sizeof(*ident));
+    if (!ident) return NULL;
+    identity_t *old = get_identity();
+    memcpy(ident, old, sizeof(*ident));
+    ident_deref(old);
+    return ident;
 }

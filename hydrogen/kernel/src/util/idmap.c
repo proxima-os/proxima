@@ -1,5 +1,5 @@
 #include "util/idmap.h"
-#include "errno.h"
+#include "hydrogen/error.h"
 #include "util/xarray.h"
 #include <limits.h>
 
@@ -15,11 +15,11 @@ int idmap_alloc(idmap_t *map, void *value) {
         if (error == 0) {
             if (id != INT_MAX) map->search_start += 1;
             return id;
-        } else if (error != EBUSY) {
+        } else if (error != ERR_ALREADY_EXISTS) {
             return -error;
         }
 
-        if (id == INT_MAX) return -EBUSY;
+        if (id == INT_MAX) return -ERR_BUSY;
         map->search_start += 1;
     }
 }
