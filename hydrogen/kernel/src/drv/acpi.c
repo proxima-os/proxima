@@ -9,7 +9,6 @@
 #include "mem/heap.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
-#include "mem/pmm.h"
 #include "mem/vheap.h"
 #include "sched/mutex.h"
 #include "sched/proc.h"
@@ -131,72 +130,6 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_raw_memory_read(uacpi_phys_addr address, uacpi_u8 byte_width, uacpi_u64 *out_value) {
-    uintptr_t addr;
-    int error = kvmm_map_mmio(&addr, addr, byte_width, PMAP_WRITE, CACHE_WRITEBACK);
-    uacpi_status status;
-
-    if (error == 0) {
-        status = UACPI_STATUS_OK;
-
-        switch (byte_width) {
-        case 1: *out_value = *(volatile uint8_t *)phys_to_virt(address); break;
-        case 2: *out_value = *(volatile uint16_t *)phys_to_virt(address); break;
-        case 4: *out_value = *(volatile uint32_t *)phys_to_virt(address); break;
-        case 8: *out_value = *(volatile uint64_t *)phys_to_virt(address); break;
-        default: status = UACPI_STATUS_INVALID_ARGUMENT; break;
-        }
-
-        kvmm_unmap_mmio(addr, byte_width);
-    } else {
-        status = UACPI_STATUS_OUT_OF_MEMORY;
-    }
-
-    return status;
-}
-
-uacpi_status uacpi_kernel_raw_memory_write(uacpi_phys_addr address, uacpi_u8 byte_width, uacpi_u64 in_value) {
-    uintptr_t addr;
-    int error = kvmm_map_mmio(&addr, addr, byte_width, PMAP_WRITE, CACHE_WRITEBACK);
-    uacpi_status status;
-
-    if (error == 0) {
-        status = UACPI_STATUS_OK;
-
-        switch (byte_width) {
-        case 1: *(volatile uint8_t *)phys_to_virt(address) = in_value; break;
-        case 2: *(volatile uint16_t *)phys_to_virt(address) = in_value; break;
-        case 4: *(volatile uint32_t *)phys_to_virt(address) = in_value; break;
-        case 8: *(volatile uint64_t *)phys_to_virt(address) = in_value; break;
-        default: status = UACPI_STATUS_INVALID_ARGUMENT; break;
-        }
-
-        kvmm_unmap_mmio(addr, byte_width);
-    } else {
-        status = UACPI_STATUS_OUT_OF_MEMORY;
-    }
-
-    return status;
-}
-
-uacpi_status uacpi_kernel_raw_io_read(uacpi_io_addr address, uacpi_u8 byte_width, uacpi_u64 *out_value) {
-    switch (byte_width) {
-    case 1: *out_value = inb(address); return UACPI_STATUS_OK;
-    case 2: *out_value = inw(address); return UACPI_STATUS_OK;
-    case 4: *out_value = inl(address); return UACPI_STATUS_OK;
-    default: return UACPI_STATUS_INVALID_ARGUMENT;
-    }
-}
-
-uacpi_status uacpi_kernel_raw_io_write(uacpi_io_addr address, uacpi_u8 byte_width, uacpi_u64 in_value) {
-    switch (byte_width) {
-    case 1: outb(address, in_value); return UACPI_STATUS_OK;
-    case 2: outw(address, in_value); return UACPI_STATUS_OK;
-    case 4: outl(address, in_value); return UACPI_STATUS_OK;
-    default: return UACPI_STATUS_INVALID_ARGUMENT;
-    }
-}
-
 uacpi_status uacpi_kernel_pci_read(
         uacpi_pci_address *address,
         uacpi_size offset,
@@ -252,11 +185,21 @@ void uacpi_kernel_io_unmap(UNUSED uacpi_handle handle) {
 }
 
 uacpi_status uacpi_kernel_io_read(uacpi_handle handle, uacpi_size offset, uacpi_u8 byte_width, uacpi_u64 *value) {
-    return uacpi_kernel_raw_io_read((uacpi_io_addr)handle + offset, byte_width, value);
+    switch (byte_width) {
+    case 1: *value = inb((uintptr_t)handle + offset); return UACPI_STATUS_OK;
+    case 2: *value = inw((uintptr_t)handle + offset); return UACPI_STATUS_OK;
+    case 4: *value = inl((uintptr_t)handle + offset); return UACPI_STATUS_OK;
+    default: return UACPI_STATUS_INVALID_ARGUMENT;
+    }
 }
 
 uacpi_status uacpi_kernel_io_write(uacpi_handle handle, uacpi_size offset, uacpi_u8 byte_width, uacpi_u64 value) {
-    return uacpi_kernel_raw_io_write((uacpi_io_addr)handle + offset, byte_width, value);
+    switch (byte_width) {
+    case 1: outb((uintptr_t)handle + offset, value); return UACPI_STATUS_OK;
+    case 2: outw((uintptr_t)handle + offset, value); return UACPI_STATUS_OK;
+    case 4: outl((uintptr_t)handle + offset, value); return UACPI_STATUS_OK;
+    default: return UACPI_STATUS_INVALID_ARGUMENT;
+    }
 }
 
 void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
