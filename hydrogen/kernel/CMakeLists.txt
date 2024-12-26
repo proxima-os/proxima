@@ -35,7 +35,7 @@ add_executable(hydrogen
     src/util/xarray.c
     ${UACPI_SOURCES}
 )
-target_compile_definitions(hydrogen PRIVATE LIMINE_API_REVISION=2 UACPI_OVERRIDE_LIBC)
+target_compile_definitions(hydrogen PRIVATE LIMINE_API_REVISION=2 UACPI_OVERRIDE_LIBC UACPI_SIZED_FREES)
 target_compile_options(hydrogen PRIVATE -ffreestanding -fno-pie -fno-stack-check -fno-stack-protector -mcmodel=kernel
     -mgeneral-regs-only -mno-red-zone)
 target_include_directories(hydrogen PRIVATE include ${UACPI_INCLUDES})

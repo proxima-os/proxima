@@ -212,24 +212,8 @@ void uacpi_kernel_unmap(void *addr, uacpi_size len) {
     kvmm_unmap_mmio((uintptr_t)addr, len);
 }
 
-typedef struct {
-    size_t size;
-} alloc_meta_t;
-
-#define META_OFFSET ((sizeof(alloc_meta_t) + (_Alignof(max_align_t) - 1)) & ~(_Alignof(max_align_t) - 1))
-
 void *uacpi_kernel_alloc(uacpi_size size) {
-    if (size == 0) return (void *)META_OFFSET;
-    size += META_OFFSET;
-
-    void *ptr = vmalloc(size);
-
-    if (ptr != NULL) {
-        ((alloc_meta_t *)ptr)->size = size;
-        return ptr + META_OFFSET;
-    } else {
-        return NULL;
-    }
+    return vmalloc(size);
 }
 
 void *uacpi_kernel_calloc(uacpi_size count, uacpi_size size) {
@@ -238,11 +222,8 @@ void *uacpi_kernel_calloc(uacpi_size count, uacpi_size size) {
     return ptr;
 }
 
-void uacpi_kernel_free(void *mem) {
-    if (mem == NULL || mem == (void *)META_OFFSET) return;
-
-    alloc_meta_t *meta = mem - META_OFFSET;
-    vmfree(meta, meta->size);
+void uacpi_kernel_free(void *mem, size_t size) {
+    vmfree(mem, size);
 }
 
 void uacpi_kernel_log(uacpi_log_level level, const uacpi_char *str) {
