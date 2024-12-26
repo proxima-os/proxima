@@ -47,8 +47,8 @@ memmove:
     cmp %rsi, %rdi
     je .Lmemmove_done # if dest = src, we're done
     jb .Lmemmove_start # if dest < src, copy forwards
-    add %rcx, %rdi # dest > src, copy backwards
-    add %rcx, %rsi
+    lea -1(%rdi,%rcx), %rdi # dest > src, copy backwards
+    lea -1(%rsi,%rcx), %rsi
     std
 .Lmemmove_start:
     rep movsb
