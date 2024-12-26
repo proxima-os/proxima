@@ -1,4 +1,5 @@
 #include "drv/hpet.h"
+#include "asm/mmio.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "uacpi/acpi.h"
@@ -16,14 +17,14 @@
 
 uint64_t hpet_period_fs;
 
-static volatile void *hpet_regs;
+static uintptr_t hpet_regs;
 
 static inline uint64_t hpet_read(unsigned offset) {
-    return *(volatile uint64_t *)(hpet_regs + offset);
+    return mmio_read64(hpet_regs, offset);
 }
 
 static inline void hpet_write(unsigned offset, uint64_t value) {
-    *(volatile uint64_t *)(hpet_regs + offset) = value;
+    mmio_write64(hpet_regs, offset, value);
 }
 
 void init_hpet(void) {
@@ -34,10 +35,8 @@ void init_hpet(void) {
     struct acpi_hpet *hpet = table.ptr;
     if (hpet->address.address_space_id != ACPI_AS_ID_SYS_MEM) panic("incorrect hpet address space");
 
-    uintptr_t addr;
-    int error = kvmm_map_mmio(&addr, hpet->address.address, 1024, PMAP_WRITE, CACHE_NONE);
+    int error = kvmm_map_mmio(&hpet_regs, hpet->address.address, 1024, PMAP_WRITE, CACHE_NONE);
     if (error) panic("failed to map hpet regs (%d)", error);
-    hpet_regs = (volatile void *)addr;
 
     uacpi_table_unref(&table);
 

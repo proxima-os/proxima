@@ -1,5 +1,6 @@
 #include "drv/pic.h"
 #include "asm/irq.h"
+#include "asm/mmio.h"
 #include "asm/pio.h"
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
@@ -20,7 +21,7 @@
 
 typedef struct {
     list_node_t node;
-    volatile void *regs;
+    uintptr_t regs;
     uint32_t id;
     uint32_t gsi_base;
     uint32_t num_irqs;
@@ -44,13 +45,13 @@ static ioapic_t *get_ioapic_for_gsi(uint32_t gsi) {
 #define IOAPIC_MASKED 0x10000
 
 static uint32_t ioapic_read(ioapic_t *apic, unsigned reg) {
-    *(volatile uint32_t *)apic->regs = reg;
-    return *(volatile uint32_t *)(apic->regs + 0x10);
+    mmio_write32(apic->regs, 0, reg);
+    return mmio_read32(apic->regs, 0x10);
 }
 
 static void ioapic_write(ioapic_t *apic, unsigned reg, uint32_t value) {
-    *(volatile uint32_t *)apic->regs = reg;
-    *(volatile uint32_t *)(apic->regs + 0x10) = value;
+    mmio_write32(apic->regs, 0, reg);
+    mmio_write32(apic->regs, 0x10, value);
 }
 
 static struct {
@@ -113,11 +114,9 @@ void init_pic(void) {
             if (!apic) panic("failed to allocate ioapic data");
             memset(apic, 0, sizeof(*apic));
 
-            uintptr_t addr;
-            int error = kvmm_map_mmio(&addr, entry->address, 12, PMAP_WRITE, CACHE_NONE);
+            int error = kvmm_map_mmio(&apic->regs, entry->address, 12, PMAP_WRITE, CACHE_NONE);
             if (error) panic("failed to map ioapic regs (%d)", error);
 
-            apic->regs = (volatile void *)addr;
             apic->id = entry->id;
             apic->gsi_base = entry->gsi_base;
             apic->num_irqs = ((ioapic_read(apic, IOAPICVER) >> 16) & 0xff) + 1;

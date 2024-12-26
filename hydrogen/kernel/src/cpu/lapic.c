@@ -1,6 +1,7 @@
 #include "cpu/lapic.h"
 #include "asm/cr.h"
 #include "asm/idle.h"
+#include "asm/mmio.h"
 #include "asm/msr.h"
 #include "compiler.h"
 #include "cpu/idt.h"
@@ -19,7 +20,7 @@
 uint32_t cpu_apic_id;
 uint32_t cpu_acpi_id;
 
-static volatile void *xapic_regs;
+static uintptr_t xapic_regs;
 static bool using_x2apic;
 
 extern void park_ap(struct limine_mp_info *);
@@ -44,12 +45,12 @@ extern void park_ap(struct limine_mp_info *);
 #define LAPIC_LVT_MASKED 0x10000
 
 static uint32_t lapic_read32(unsigned reg) {
-    if (!using_x2apic) return *(volatile uint32_t *)(xapic_regs + reg);
+    if (!using_x2apic) return mmio_read32(xapic_regs, reg);
     else return rdmsr(0x800 + (reg >> 4));
 }
 
 static void lapic_write32(unsigned reg, uint32_t value) {
-    if (!using_x2apic) *(volatile uint32_t *)(xapic_regs + reg) = value;
+    if (!using_x2apic) mmio_write32(xapic_regs, reg, value);
     else wrmsr(0x800 + (reg >> 4), value);
 }
 
@@ -75,10 +76,8 @@ static void do_init_lapic(void) {
             }
         }
 
-        uintptr_t addr;
-        int error = kvmm_map_mmio(&addr, phys, 0x1000, PMAP_WRITE, CACHE_NONE);
+        int error = kvmm_map_mmio(&xapic_regs, phys, 0x1000, PMAP_WRITE, CACHE_NONE);
         if (error) panic("failed to map lapic regs (%d)", error);
-        xapic_regs = (volatile void *)addr;
     }
 
     lapic_write32(LAPIC_SPR, IRQ_SPURIOUS);

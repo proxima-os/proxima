@@ -11,7 +11,7 @@ typedef struct {
 } pci_address_t;
 
 typedef struct {
-    volatile void *ptr;
+    uintptr_t addr;
 } pci_config_t;
 
 void init_pci_access(void);
