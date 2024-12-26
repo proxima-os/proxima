@@ -81,7 +81,7 @@ static void free_resources(task_t *task) {
     task->state = TASK_ZOMBIE;
 
     free_xsave(task->xsave_area);
-    vmfree((void *)task->kernel_stack - KERNEL_STACK_SIZE, sizeof(*task));
+    vmfree((void *)task->kernel_stack - KERNEL_STACK_SIZE, KERNEL_STACK_SIZE);
 
     task->xsave_area = NULL;
     task->kernel_stack = 0;
