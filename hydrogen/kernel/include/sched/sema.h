@@ -11,6 +11,8 @@ typedef struct {
     list_t waiters;
 } semaphore_t;
 
+bool sema_try_wait(semaphore_t *sema);
+
 // `timeout` has the same meaning as in `sched_stop`
 bool sema_wait(semaphore_t *sema, uint64_t timeout);
 
