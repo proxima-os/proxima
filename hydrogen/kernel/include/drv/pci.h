@@ -10,24 +10,20 @@ typedef struct {
     uint8_t function;
 } pci_address_t;
 
-typedef struct {
-    uintptr_t addr;
-} pci_config_t;
-
 void init_pci_access(void);
 
-int get_pci_config(pci_config_t *out, pci_address_t address);
+int get_pci_config(uintptr_t *out, pci_address_t address);
 
-uint8_t pci_readb(pci_config_t config, unsigned offset);
+uint8_t pci_readb(uintptr_t config, unsigned offset);
 
-uint16_t pci_readw(pci_config_t config, unsigned offset);
+uint16_t pci_readw(uintptr_t config, unsigned offset);
 
-uint32_t pci_readl(pci_config_t config, unsigned offset);
+uint32_t pci_readl(uintptr_t config, unsigned offset);
 
-void pci_writeb(pci_config_t config, unsigned offset, uint8_t value);
+void pci_writeb(uintptr_t config, unsigned offset, uint8_t value);
 
-void pci_writew(pci_config_t config, unsigned offset, uint16_t value);
+void pci_writew(uintptr_t config, unsigned offset, uint16_t value);
 
-void pci_writel(pci_config_t config, unsigned offset, uint32_t value);
+void pci_writel(uintptr_t config, unsigned offset, uint32_t value);
 
 #endif // HYDROGEN_DRV_PCI_H
