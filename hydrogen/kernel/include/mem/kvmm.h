@@ -26,6 +26,8 @@ int vmem_add_range(vmem_t *vmem, size_t start, size_t size);
 
 bool vmem_alloc(vmem_t *vmem, size_t size, size_t *out);
 
+bool vmem_resize(vmem_t *vmem, size_t start, size_t new_size);
+
 void vmem_free(vmem_t *vmem, size_t start, size_t size);
 
 int kvmm_map_mmio(uintptr_t *out, uint64_t phys, size_t size, int flags, cache_mode_t mode);
