@@ -136,7 +136,7 @@ uacpi_status uacpi_kernel_pci_read(
         uacpi_u8 byte_width,
         uacpi_u64 *value
 ) {
-    pci_config_t config;
+    uintptr_t config;
     int error = get_pci_config(
             &config,
             (pci_address_t){address->segment, address->bus, address->device, address->function}
@@ -159,7 +159,7 @@ uacpi_status uacpi_kernel_pci_write(
         uacpi_u8 byte_width,
         uacpi_u64 value
 ) {
-    pci_config_t config;
+    uintptr_t config;
     int error = get_pci_config(
             &config,
             (pci_address_t){address->segment, address->bus, address->device, address->function}
