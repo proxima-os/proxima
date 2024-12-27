@@ -22,13 +22,13 @@ jobs:
         submodules: recursive
 
     - name: Install dependencies
-      run: sudo apt-get install -y xorriso
+      run: sudo apt-get install -y xorriso ninja-build
 
     - name: Configure CMake
-      run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{env.LTO}} --toolchain ${{github.workspace}}/cmake/cross/${{matrix.arch}}.cmake
+      run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{env.LTO}} --toolchain ${{github.workspace}}/cmake/cross/${{matrix.arch}}.cmake -GNinja
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --parallel 4
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: Create ISO
       run: ${{github.workspace}}/scripts/mkiso.sh proxima.iso
