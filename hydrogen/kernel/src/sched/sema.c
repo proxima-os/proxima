@@ -5,6 +5,14 @@
 
 // TODO: Make it so the fast paths (wait: non-zero, signal: there are no waiters) don't involve disabling IRQs
 
+bool sema_try_wait(semaphore_t *sema) {
+    irq_state_t state = save_disable_irq();
+    bool success = sema->value > 0;
+    if (success) sema->value -= 1;
+    restore_irq(state);
+    return success;
+}
+
 bool sema_wait(semaphore_t *sema, uint64_t timeout) {
     irq_state_t state = save_disable_irq();
 

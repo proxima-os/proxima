@@ -295,7 +295,8 @@ void uacpi_kernel_release_mutex(uacpi_handle handle) {
 }
 
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle handle, uacpi_u16 timeout) {
-    return sema_wait(handle, get_real_timeout(timeout)) ? UACPI_TRUE : UACPI_FALSE;
+    bool success = timeout != 0 ? sema_wait(handle, get_real_timeout(timeout)) : sema_try_wait(handle);
+    return success ? UACPI_TRUE : UACPI_FALSE;
 }
 
 void uacpi_kernel_signal_event(uacpi_handle handle) {
