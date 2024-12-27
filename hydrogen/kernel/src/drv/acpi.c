@@ -130,46 +130,34 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_read(
-        uacpi_pci_address *address,
-        uacpi_size offset,
-        uacpi_u8 byte_width,
-        uacpi_u64 *value
-) {
-    uintptr_t config;
-    int error = get_pci_config(
-            &config,
-            (pci_address_t){address->segment, address->bus, address->device, address->function}
-    );
+uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle *out_handle) {
+    uintptr_t addr;
+    int error = get_pci_config(&addr, (pci_address_t){address.segment, address.bus, address.device, address.function});
     if (error) return UACPI_STATUS_NOT_FOUND;
 
+    *out_handle = (void *)addr;
+    return UACPI_STATUS_OK;
+}
+
+void uacpi_kernel_pci_device_close(UNUSED uacpi_handle handle) {
+}
+
+uacpi_status uacpi_kernel_pci_read(uacpi_handle handle, uacpi_size offset, uacpi_u8 byte_width, uacpi_u64 *value) {
     switch (byte_width) {
-    case 1: *value = pci_readb(config, offset); break;
-    case 2: *value = pci_readw(config, offset); break;
-    case 4: *value = pci_readl(config, offset); break;
+    case 1: *value = pci_readb((uintptr_t)handle, offset); break;
+    case 2: *value = pci_readw((uintptr_t)handle, offset); break;
+    case 4: *value = pci_readl((uintptr_t)handle, offset); break;
     default: return UACPI_STATUS_INVALID_ARGUMENT;
     }
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write(
-        uacpi_pci_address *address,
-        uacpi_size offset,
-        uacpi_u8 byte_width,
-        uacpi_u64 value
-) {
-    uintptr_t config;
-    int error = get_pci_config(
-            &config,
-            (pci_address_t){address->segment, address->bus, address->device, address->function}
-    );
-    if (error) return UACPI_STATUS_NOT_FOUND;
-
+uacpi_status uacpi_kernel_pci_write(uacpi_handle handle, uacpi_size offset, uacpi_u8 byte_width, uacpi_u64 value) {
     switch (byte_width) {
-    case 1: pci_writeb(config, offset, value); break;
-    case 2: pci_writew(config, offset, value); break;
-    case 4: pci_writel(config, offset, value); break;
+    case 1: pci_writeb((uintptr_t)handle, offset, value); break;
+    case 2: pci_writew((uintptr_t)handle, offset, value); break;
+    case 4: pci_writel((uintptr_t)handle, offset, value); break;
     default: return UACPI_STATUS_INVALID_ARGUMENT;
     }
 
@@ -214,12 +202,6 @@ void uacpi_kernel_unmap(void *addr, uacpi_size len) {
 
 void *uacpi_kernel_alloc(uacpi_size size) {
     return vmalloc(size);
-}
-
-void *uacpi_kernel_calloc(uacpi_size count, uacpi_size size) {
-    void *ptr = uacpi_kernel_alloc(count * size);
-    if (ptr) memset(ptr, 0, count * size);
-    return ptr;
 }
 
 void uacpi_kernel_free(void *mem, size_t size) {
