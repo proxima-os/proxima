@@ -57,9 +57,6 @@ static bool try_coalesce(vmem_t *vmem, struct range_info *next, size_t start, si
     struct range_info *prev = node_to_obj(struct range_info, node, next ? next->node.prev : vmem->ranges.last);
     if (!prev && !next) return false;
 
-    ASSERT(prev == NULL || prev->start + prev->size <= start);
-    ASSERT(next == NULL || start + size <= next->start);
-
     bool prev_merge = prev != NULL && prev->free && prev->start + prev->size == start;
     bool next_merge = next != NULL && next->free && start + size == next->start;
 
@@ -86,6 +83,23 @@ static bool try_coalesce(vmem_t *vmem, struct range_info *next, size_t start, si
     }
 }
 
+static bool add_free_range(vmem_t *vmem, struct range_info *next, size_t start, size_t size) {
+    if (!try_coalesce(vmem, next, start, size)) {
+        struct range_info *info = kalloc(sizeof(*info));
+        if (!info) return false;
+        memset(info, 0, sizeof(*info));
+        info->start = start;
+        info->size = size;
+        info->order = get_order(size);
+        info->free = true;
+
+        list_insert_before(&vmem->ranges, next ? &next->node : NULL, &info->node);
+        list_insert_head(&vmem->free_lists[info->order], &info->snode);
+    }
+
+    return true;
+}
+
 int vmem_add_range(vmem_t *vmem, size_t start, size_t size) {
     if (size == 0) return 0;
 
@@ -104,24 +118,10 @@ int vmem_add_range(vmem_t *vmem, size_t start, size_t size) {
         }
     }
 
-    if (!try_coalesce(vmem, next, start, size)) {
-        struct range_info *info = kalloc(sizeof(*info));
-        if (!info) {
-            mutex_unlock(&vmem->lock);
-            return ERR_OUT_OF_MEMORY;
-        }
-        memset(info, 0, sizeof(*info));
-        info->start = start;
-        info->size = size;
-        info->order = get_order(size);
-        info->free = true;
-
-        list_insert_before(&vmem->ranges, next ? &next->node : NULL, &info->node);
-        list_insert_head(&vmem->free_lists[info->order], &info->snode);
-    }
+    bool success = add_free_range(vmem, next, start, size);
 
     mutex_unlock(&vmem->lock);
-    return 0;
+    return success ? 0 : ERR_OUT_OF_MEMORY;
 }
 
 static struct range_info *get_range_for_alloc(vmem_t *vmem, size_t size) {
@@ -197,6 +197,68 @@ bool vmem_alloc(vmem_t *vmem, size_t size, size_t *out) {
     mutex_unlock(&vmem->lock);
 
     *out = info->start;
+    return true;
+}
+
+static bool can_expand_into(struct range_info *next, size_t expand_start, size_t expand_size) {
+    return next != NULL && next->free && next->start == expand_start && next->size >= expand_size;
+}
+
+bool vmem_resize(vmem_t *vmem, size_t start, size_t new_size) {
+    if (new_size == 0) {
+        vmem_free(vmem, start, new_size);
+        return false;
+    }
+
+    ASSERT(start % vmem->quantum == 0);
+    ASSERT(new_size % vmem->quantum == 0);
+
+    size_t index = hash(start) % VMEM_ALLOC_HT_CAP;
+
+    mutex_lock(&vmem->lock);
+
+    struct range_info *info = NULL;
+
+    list_foreach(vmem->alloc_lists[index], struct range_info, snode, cur) {
+        if (cur->start == start) {
+            info = cur;
+            break;
+        }
+    }
+
+    ASSERT(info != NULL);
+    ASSERT(!info->free);
+
+    struct range_info *next = node_to_obj(struct range_info, node, info->node.next);
+
+    if (new_size < info->size) {
+        if (!add_free_range(vmem, next, start + new_size, info->size - new_size)) {
+            mutex_unlock(&vmem->lock);
+            return false;
+        }
+
+        info->size = new_size;
+    } else if (new_size > info->size) {
+        size_t delta = new_size - info->size;
+
+        if (!can_expand_into(next, info->start + info->size, delta)) {
+            mutex_unlock(&vmem->lock);
+            return false;
+        }
+
+        info->size = new_size;
+        next->start += delta;
+        next->size -= delta;
+
+        int new_order = get_order(next->size);
+        if (new_order != next->order) {
+            list_remove(&vmem->free_lists[next->order], &next->snode);
+            list_insert_head(&vmem->free_lists[new_order], &next->snode);
+            next->order = new_order;
+        }
+    }
+
+    mutex_unlock(&vmem->lock);
     return true;
 }
 

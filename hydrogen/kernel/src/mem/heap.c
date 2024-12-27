@@ -1,6 +1,7 @@
 #include "mem/heap.h"
 #include "mem/pmm.h"
 #include "sched/mutex.h"
+#include "string.h"
 #include "util/list.h"
 #include <stddef.h>
 
@@ -16,12 +17,7 @@ static int size_to_order(size_t size) {
     return 64 - __builtin_clzl(size - 1);
 }
 
-void *kalloc(size_t size) {
-    if (size == 0) return ZERO_PTR;
-    if (size < MIN_ALLOC_SIZE) size = MIN_ALLOC_SIZE;
-
-    int order = size_to_order(size);
-
+static void *alloc_order(int order) {
     if (order > PAGE_SHIFT) {
         return NULL;
     } else if (order == PAGE_SHIFT) {
@@ -50,7 +46,7 @@ void *kalloc(size_t size) {
             page->heap.order = order;
             ptr = page_to_virt(page);
 
-            size = 1ul << order;
+            size_t size = 1ul << order;
 
             list_t elements = {};
 
@@ -65,6 +61,33 @@ void *kalloc(size_t size) {
     }
 
     return ptr;
+}
+
+void *kalloc(size_t size) {
+    if (size == 0) return ZERO_PTR;
+    if (size < MIN_ALLOC_SIZE) size = MIN_ALLOC_SIZE;
+
+    return alloc_order(size_to_order(size));
+}
+
+void *krealloc(void *ptr, size_t size) {
+    if (ptr == NULL || ptr == ZERO_PTR) return kalloc(size);
+    if (size == 0) {
+        kfree(ptr);
+        return ZERO_PTR;
+    }
+
+    int order = size_to_order(size);
+    int orig_order = virt_to_page(ptr)->heap.order;
+    if (order == orig_order) return ptr;
+
+    size_t copy_size = orig_order < order ? (1ul << orig_order) : size;
+
+    void *ptr2 = alloc_order(order);
+    if (!ptr2) return NULL;
+    memcpy(ptr2, ptr, copy_size);
+    kfree(ptr);
+    return ptr2;
 }
 
 void kfree(void *ptr) {

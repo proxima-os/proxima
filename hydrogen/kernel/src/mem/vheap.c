@@ -3,6 +3,7 @@
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "mem/pmm.h"
+#include "string.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -42,6 +43,38 @@ static void *vmalloc_large(size_t size) {
     return (void *)vaddr;
 }
 
+// Tries to resize the allocation in-place. Returns true if successful.
+static bool vmrealloc_large(void *ptr, size_t orig_size, size_t size) {
+    orig_size = (orig_size + PAGE_MASK) & ~PAGE_MASK;
+    size = (size + PAGE_MASK) & ~PAGE_MASK;
+
+    if (orig_size == size) return true;
+
+    size_t extra_pages = orig_size < size ? (size - orig_size) >> PAGE_SHIFT : 0;
+    if (extra_pages) {
+        if (!reserve_pages(extra_pages)) return false;
+
+        int error = prepare_map((uintptr_t)ptr + orig_size, size - orig_size);
+        if (error) {
+            unreserve_pages(extra_pages);
+            return false;
+        }
+    }
+
+    if (!vmem_resize(&kvmm, (uintptr_t)ptr, size)) {
+        if (extra_pages) unreserve_pages(extra_pages);
+        return false;
+    }
+
+    if (extra_pages) {
+        alloc_and_map((uintptr_t)ptr + orig_size, size - orig_size);
+    } else {
+        unmap_and_free((uintptr_t)ptr + size, orig_size - size);
+    }
+
+    return true;
+}
+
 static void vmfree_large(void *ptr, size_t size) {
     size = (size + PAGE_MASK) & ~PAGE_MASK;
 
@@ -58,6 +91,23 @@ void *vmalloc(size_t size) {
     } else {
         return vmalloc_large(size);
     }
+}
+
+void *vmrealloc(void *ptr, size_t orig_size, size_t size) {
+    if (ptr == NULL || ptr == ZERO_PTR) return vmalloc(size);
+    if (size == 0) {
+        vmfree(ptr, orig_size);
+        return ZERO_PTR;
+    }
+
+    if (orig_size <= PAGE_SIZE && size <= PAGE_SIZE) return krealloc(ptr, size);
+    if (orig_size > PAGE_SIZE && size > PAGE_SIZE && vmrealloc_large(ptr, orig_size, size)) return ptr;
+
+    void *ptr2 = vmalloc(size);
+    if (!ptr2) return NULL;
+    memcpy(ptr2, ptr, orig_size < size ? orig_size : size);
+    vmfree(ptr, orig_size);
+    return ptr2;
 }
 
 void vmfree(void *ptr, size_t size) {
