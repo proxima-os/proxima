@@ -222,6 +222,7 @@ int alloc_irq_vectors(uint32_t count, uint32_t align) {
             return vector;
         }
 
+        vector += offset + 1;
         vector = (vector + (align - 1)) & ~(align - 1);
     }
 
