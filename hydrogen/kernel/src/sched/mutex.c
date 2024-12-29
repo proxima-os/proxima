@@ -12,7 +12,7 @@
 #define MUTEX_LOCKED_QUEUED 2
 
 bool mutex_try_lock(mutex_t *mutex) {
-    int wanted = MUTEX_UNLOCKED;
+    char wanted = MUTEX_UNLOCKED;
     return __atomic_compare_exchange_n(
             &mutex->state,
             &wanted,
@@ -29,7 +29,7 @@ void mutex_lock(mutex_t *mutex) {
 
 bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
     for (int i = 0; i < SPIN_ITERS; i++) {
-        int wanted = MUTEX_UNLOCKED;
+        char wanted = MUTEX_UNLOCKED;
 
         if (__atomic_compare_exchange_n(
                     &mutex->state,
@@ -68,7 +68,7 @@ bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
 }
 
 void mutex_unlock(mutex_t *mutex) {
-    int wanted = MUTEX_LOCKED_NOQUEUE;
+    char wanted = MUTEX_LOCKED_NOQUEUE;
     if (__atomic_compare_exchange_n(
                 &mutex->state,
                 &wanted,

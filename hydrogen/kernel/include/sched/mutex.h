@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 typedef struct {
-    int state;
+    char state;
     list_t waiters;
 } mutex_t;
 
