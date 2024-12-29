@@ -68,7 +68,7 @@ static bool try_coalesce(vmem_t *vmem, struct range_info *next, size_t start, si
 
             list_remove(&vmem->ranges, &next->node);
             list_remove(&vmem->free_lists[next->order], &next->snode);
-            kfree(next);
+            kfree(next, sizeof(*next));
         }
 
         update_order(vmem, prev);
@@ -295,7 +295,7 @@ void vmem_free(vmem_t *vmem, size_t start, size_t size) {
         list_insert_before(&vmem->ranges, next ? &next->node : NULL, &info->node);
         list_insert_head(&vmem->free_lists[info->order], &info->snode);
     } else {
-        kfree(info);
+        kfree(info, sizeof(*info));
     }
 
     mutex_unlock(&vmem->lock);

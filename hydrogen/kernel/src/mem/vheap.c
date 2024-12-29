@@ -100,7 +100,7 @@ void *vmrealloc(void *ptr, size_t orig_size, size_t size) {
         return ZERO_PTR;
     }
 
-    if (orig_size <= PAGE_SIZE && size <= PAGE_SIZE) return krealloc(ptr, size);
+    if (orig_size <= PAGE_SIZE && size <= PAGE_SIZE) return krealloc(ptr, orig_size, size);
     if (orig_size > PAGE_SIZE && size > PAGE_SIZE && vmrealloc_large(ptr, orig_size, size)) return ptr;
 
     void *ptr2 = vmalloc(size);
@@ -114,7 +114,7 @@ void vmfree(void *ptr, size_t size) {
     if (ptr == NULL || ptr == ZERO_PTR) return;
 
     if (size <= PAGE_SIZE) {
-        kfree(ptr);
+        kfree(ptr, size);
     } else {
         vmfree_large(ptr, size);
     }

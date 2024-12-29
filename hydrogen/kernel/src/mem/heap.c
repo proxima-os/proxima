@@ -10,7 +10,11 @@
 
 _Static_assert(MIN_ALLOC_SIZE >= sizeof(list_node_t), "MIN_ALLOC_SIZE too small");
 
-static list_t free_objects[PAGE_SHIFT + 1];
+struct free_obj {
+    struct free_obj *next;
+};
+
+static page_t *heap_pages[PAGE_SHIFT + 1];
 static mutex_t heap_lock[PAGE_SHIFT + 1];
 
 static int size_to_order(size_t size) {
@@ -24,7 +28,6 @@ static void *alloc_order(int order) {
         page_t *page = alloc_page_now();
 
         if (page) {
-            page->heap.order = PAGE_SHIFT;
             return page_to_virt(page);
         } else {
             return NULL;
@@ -33,34 +36,51 @@ static void *alloc_order(int order) {
 
     mutex_lock(&heap_lock[order]);
 
-    void *ptr = list_remove_head(&free_objects[order]);
-    if (ptr) virt_to_page(ptr)->heap.allocated += 1;
+    page_t *page = heap_pages[order];
 
-    mutex_unlock(&heap_lock[order]);
+    if (page) {
+        struct free_obj *obj = page->heap.objs;
+        page->heap.objs = obj->next;
 
-    if (ptr == NULL) {
-        page_t *page = alloc_page_now();
+        if (--page->heap.free == 0) {
+            heap_pages[order] = page->heap.next;
+            if (heap_pages[order]) heap_pages[order]->heap.prev = NULL;
+        }
+
+        mutex_unlock(&heap_lock[order]);
+        return obj;
+    } else {
+        mutex_unlock(&heap_lock[order]);
+
+        page = alloc_page_now();
 
         if (page != NULL) {
-            page->heap.allocated = 1;
-            page->heap.order = order;
-            ptr = page_to_virt(page);
-
+            struct free_obj *objs = page_to_virt(page);
+            struct free_obj *last = objs;
             size_t size = 1ul << order;
 
-            list_t elements = {};
-
-            for (size_t offset = size; offset < PAGE_SIZE; offset += size) {
-                list_insert_tail(&elements, ptr + offset);
+            for (size_t i = size; i < PAGE_SIZE; i += size) {
+                struct free_obj *obj = (void *)objs + i;
+                last->next = obj;
+                last = obj;
             }
 
+            last->next = NULL;
+            page->heap.prev = NULL;
+            page->heap.objs = objs->next;
+            page->heap.free = (PAGE_SIZE >> order) - 1;
+
             mutex_lock(&heap_lock[order]);
-            list_transfer_tail(&free_objects[order], &elements);
+            page->heap.next = heap_pages[order];
+            if (page->heap.next) page->heap.next->heap.prev = page;
+            heap_pages[order] = page;
             mutex_unlock(&heap_lock[order]);
+
+            return objs;
+        } else {
+            return NULL;
         }
     }
-
-    return ptr;
 }
 
 void *kalloc(size_t size) {
@@ -70,15 +90,15 @@ void *kalloc(size_t size) {
     return alloc_order(size_to_order(size));
 }
 
-void *krealloc(void *ptr, size_t size) {
+void *krealloc(void *ptr, size_t orig_size, size_t size) {
     if (ptr == NULL || ptr == ZERO_PTR) return kalloc(size);
     if (size == 0) {
-        kfree(ptr);
+        kfree(ptr, orig_size);
         return ZERO_PTR;
     }
 
     int order = size_to_order(size);
-    int orig_order = virt_to_page(ptr)->heap.order;
+    int orig_order = size_to_order(orig_size);
     if (order == orig_order) return ptr;
 
     size_t copy_size = orig_order < order ? (1ul << orig_order) : size;
@@ -86,35 +106,39 @@ void *krealloc(void *ptr, size_t size) {
     void *ptr2 = alloc_order(order);
     if (!ptr2) return NULL;
     memcpy(ptr2, ptr, copy_size);
-    kfree(ptr);
+    kfree(ptr, orig_size);
     return ptr2;
 }
 
-void kfree(void *ptr) {
+void kfree(void *ptr, size_t size) {
     if (ptr == NULL) return;
     if (ptr == ZERO_PTR) return;
 
     page_t *page = virt_to_page(ptr);
-    int order = page->heap.order;
+    int order = size_to_order(size);
 
     if (order != PAGE_SHIFT) {
         mutex_lock(&heap_lock[order]);
 
-        list_insert_head(&free_objects[order], ptr);
+        struct free_obj *obj = ptr;
+        obj->next = page->heap.objs;
+        page->heap.objs = obj;
 
-        if (--page->heap.allocated == 0) {
-            ptr = page_to_virt(page);
-            size_t size = 1ul << order;
+        if (page->heap.free++ == 0) {
+            page->heap.prev = NULL;
+            page->heap.next = heap_pages[order];
+            heap_pages[order] = page;
+        } else if (page->heap.free == (PAGE_SIZE >> order)) {
+            if (page->heap.prev) page->heap.prev->heap.next = page->heap.next;
+            else heap_pages[order] = page->heap.next;
 
-            for (size_t i = 0; i < PAGE_SIZE; i += size) {
-                list_remove(&free_objects[order], ptr + i);
-            }
+            if (page->heap.next) page->heap.next->heap.prev = page->heap.prev;
 
             free_page_now(page);
         }
 
         mutex_unlock(&heap_lock[order]);
     } else {
-        free_page_now(virt_to_page(ptr));
+        free_page_now(page);
     }
 }

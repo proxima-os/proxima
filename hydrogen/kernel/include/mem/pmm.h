@@ -15,8 +15,10 @@ typedef union page {
         size_t count;
     } free;
     struct {
-        size_t allocated;
-        int order;
+        union page *prev;
+        union page *next;
+        struct free_obj *objs;
+        size_t free;
     } heap;
 } page_t;
 
