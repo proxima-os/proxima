@@ -228,7 +228,7 @@ void disable_preempt(void) {
 }
 
 void enable_preempt(void) {
-    if (--preempt_level == 0) {
+    if (__atomic_fetch_sub(&preempt_level, 1, __ATOMIC_RELEASE) == 1) {
         irq_state_t state = save_disable_irq();
         if (current_task->state != TASK_RUNNING) do_yield(false);
         restore_irq(state);
