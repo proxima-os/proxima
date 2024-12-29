@@ -22,12 +22,20 @@ typedef union page {
     } heap;
 } page_t;
 
+typedef struct {
+    size_t total;
+    size_t avail;
+    size_t free;
+} pmm_stats_t;
+
 extern void *hhdm_start;
 extern page_t *page_array;
 
 void init_pmm(void);
 
 void reclaim_loader_memory(void);
+
+pmm_stats_t get_pmm_stats(void);
 
 uint64_t sym_to_phys(const void *sym);
 

@@ -15,7 +15,7 @@ static uint64_t kernel_phys;
 static struct limine_memmap_response *mmap;
 
 static page_t *free_pages;
-static size_t avail_pages;
+static pmm_stats_t pmm_stats;
 static mutex_t pmm_lock;
 
 static uint64_t max_phys_addr;
@@ -41,7 +41,9 @@ static void free_regions(uint64_t type) {
                 page->free.count = (aligned_end - aligned_start) >> PAGE_SHIFT;
                 free_pages = page;
 
-                avail_pages += page->free.count;
+                pmm_stats.total += page->free.count;
+                pmm_stats.avail += page->free.count;
+                pmm_stats.free += page->free.count;
             }
         }
     }
@@ -171,29 +173,40 @@ void reclaim_loader_memory(void) {
     mutex_unlock(&pmm_lock);
 }
 
+pmm_stats_t get_pmm_stats(void) {
+    mutex_lock(&pmm_lock);
+    pmm_stats_t stats = pmm_stats;
+    mutex_unlock(&pmm_lock);
+    return stats;
+}
+
 uint64_t sym_to_phys(const void *sym) {
     return kernel_phys + (sym - &_start);
 }
 
 bool reserve_pages(size_t count) {
     mutex_lock(&pmm_lock);
-    bool success = count <= avail_pages;
-    if (success) avail_pages -= count;
+    bool success = count <= pmm_stats.avail;
+    if (success) pmm_stats.avail -= count;
     mutex_unlock(&pmm_lock);
     return success;
 }
 
 void unreserve_pages(size_t count) {
     mutex_lock(&pmm_lock);
-    avail_pages += count;
+    pmm_stats.avail += count;
     mutex_unlock(&pmm_lock);
 }
 
 page_t *alloc_page(void) {
     mutex_lock(&pmm_lock);
+
     page_t *base = free_pages;
     size_t index = --base->free.count;
     if (index == 0) free_pages = base->free.next;
+
+    pmm_stats.free -= 1;
+
     mutex_unlock(&pmm_lock);
     return base + index;
 }
@@ -204,18 +217,20 @@ void free_page(page_t *page) {
     mutex_lock(&pmm_lock);
     page->free.next = free_pages;
     free_pages = page;
+    pmm_stats.free += 1;
     mutex_unlock(&pmm_lock);
 }
 
 page_t *alloc_page_now(void) {
     mutex_lock(&pmm_lock);
 
-    if (avail_pages == 0) {
+    if (pmm_stats.avail == 0) {
         mutex_unlock(&pmm_lock);
         return NULL;
     }
 
-    avail_pages -= 1;
+    pmm_stats.avail -= 1;
+    pmm_stats.free -= 1;
 
     page_t *base = free_pages;
     size_t index = --base->free.count;
@@ -232,6 +247,7 @@ void free_page_now(page_t *page) {
     page->free.next = free_pages;
     free_pages = page;
 
-    avail_pages += 1;
+    pmm_stats.free += 1;
+    pmm_stats.avail += 1;
     mutex_unlock(&pmm_lock);
 }

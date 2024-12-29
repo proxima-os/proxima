@@ -23,6 +23,12 @@ __attribute__((used, section(".requests2"))) LIMINE_REQUESTS_END_MARKER;
 LIMINE_REQ LIMINE_BASE_REVISION(3);
 
 static void init_process_func(UNUSED void *ctx) {
+    pmm_stats_t stats = get_pmm_stats();
+    printk("mem: %uK total, %uK available, %uK free\n",
+           stats.total << (PAGE_SHIFT - 10),
+           stats.avail << (PAGE_SHIFT - 10),
+           stats.free << (PAGE_SHIFT - 10));
+
     printk("TODO: run init executable\n");
 }
 
