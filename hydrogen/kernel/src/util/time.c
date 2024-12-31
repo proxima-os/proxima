@@ -225,6 +225,8 @@ void queue_event(timer_event_t *event) {
     event->queued = true;
     event->cpu = current_cpu_ptr;
 
+    if (next) next->prev = event;
+
     if (prev) {
         prev->next = event;
     } else {
