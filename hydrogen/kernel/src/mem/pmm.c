@@ -1,4 +1,5 @@
 #include "mem/pmm.h"
+#include "compiler.h"
 #include "cpu/cpu.h"
 #include "limine.h"
 #include "mem/kvmm.h"
@@ -187,7 +188,7 @@ uint64_t sym_to_phys(const void *sym) {
 bool reserve_pages(size_t count) {
     mutex_lock(&pmm_lock);
     bool success = count <= pmm_stats.avail;
-    if (success) pmm_stats.avail -= count;
+    if (likely(success)) pmm_stats.avail -= count;
     mutex_unlock(&pmm_lock);
     return success;
 }
@@ -203,7 +204,7 @@ page_t *alloc_page(void) {
 
     page_t *base = free_pages;
     size_t index = --base->free.count;
-    if (index == 0) free_pages = base->free.next;
+    if (unlikely(index == 0)) free_pages = base->free.next;
 
     pmm_stats.free -= 1;
 
@@ -224,7 +225,7 @@ void free_page(page_t *page) {
 page_t *alloc_page_now(void) {
     mutex_lock(&pmm_lock);
 
-    if (pmm_stats.avail == 0) {
+    if (unlikely(pmm_stats.avail == 0)) {
         mutex_unlock(&pmm_lock);
         return NULL;
     }
@@ -234,7 +235,7 @@ page_t *alloc_page_now(void) {
 
     page_t *base = free_pages;
     size_t index = --base->free.count;
-    if (index == 0) free_pages = base->free.next;
+    if (unlikely(index == 0)) free_pages = base->free.next;
 
     mutex_unlock(&pmm_lock);
     return base + index;

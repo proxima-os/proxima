@@ -1,4 +1,5 @@
 #include "mem/heap.h"
+#include "compiler.h"
 #include "mem/pmm.h"
 #include "sched/mutex.h"
 #include "string.h"
@@ -22,9 +23,9 @@ static int size_to_order(size_t size) {
 }
 
 static void *alloc_order(int order) {
-    if (order > PAGE_SHIFT) {
+    if (unlikely(order > PAGE_SHIFT)) {
         return NULL;
-    } else if (order == PAGE_SHIFT) {
+    } else if (unlikely(order == PAGE_SHIFT)) {
         page_t *page = alloc_page_now();
 
         if (page) {
@@ -38,11 +39,11 @@ static void *alloc_order(int order) {
 
     page_t *page = heap_pages[order];
 
-    if (page) {
+    if (likely(page)) {
         struct free_obj *obj = page->heap.objs;
         page->heap.objs = obj->next;
 
-        if (--page->heap.free == 0) {
+        if (unlikely(--page->heap.free == 0)) {
             heap_pages[order] = page->heap.next;
             if (heap_pages[order]) heap_pages[order]->heap.prev = NULL;
         }
@@ -54,7 +55,7 @@ static void *alloc_order(int order) {
 
         page = alloc_page_now();
 
-        if (page != NULL) {
+        if (likely(page != NULL)) {
             struct free_obj *objs = page_to_virt(page);
             struct free_obj *last = objs;
             size_t size = 1ul << order;
@@ -91,8 +92,8 @@ void *kalloc(size_t size) {
 }
 
 void *krealloc(void *ptr, size_t orig_size, size_t size) {
-    if (ptr == NULL || ptr == ZERO_PTR) return kalloc(size);
-    if (size == 0) {
+    if (unlikely(ptr == NULL || ptr == ZERO_PTR)) return kalloc(size);
+    if (unlikely(size == 0)) {
         kfree(ptr, orig_size);
         return ZERO_PTR;
     }
@@ -104,31 +105,30 @@ void *krealloc(void *ptr, size_t orig_size, size_t size) {
     size_t copy_size = orig_order < order ? (1ul << orig_order) : size;
 
     void *ptr2 = alloc_order(order);
-    if (!ptr2) return NULL;
+    if (unlikely(!ptr2)) return NULL;
     memcpy(ptr2, ptr, copy_size);
     kfree(ptr, orig_size);
     return ptr2;
 }
 
 void kfree(void *ptr, size_t size) {
-    if (ptr == NULL) return;
-    if (ptr == ZERO_PTR) return;
+    if (unlikely(ptr == NULL || ptr == ZERO_PTR)) return;
 
     page_t *page = virt_to_page(ptr);
     int order = size_to_order(size);
 
-    if (order != PAGE_SHIFT) {
+    if (likely(order != PAGE_SHIFT)) {
         mutex_lock(&heap_lock[order]);
 
         struct free_obj *obj = ptr;
         obj->next = page->heap.objs;
         page->heap.objs = obj;
 
-        if (page->heap.free++ == 0) {
+        if (unlikely(page->heap.free++ == 0)) {
             page->heap.prev = NULL;
             page->heap.next = heap_pages[order];
             heap_pages[order] = page;
-        } else if (page->heap.free == (PAGE_SIZE >> order)) {
+        } else if (unlikely(page->heap.free == (PAGE_SIZE >> order))) {
             if (page->heap.prev) page->heap.prev->heap.next = page->heap.next;
             else heap_pages[order] = page->heap.next;
 

@@ -1,4 +1,5 @@
 #include "mem/vheap.h"
+#include "compiler.h"
 #include "mem/heap.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
@@ -24,16 +25,16 @@ static void *vmalloc_large(size_t size) {
 
     size_t pages = size >> PAGE_SHIFT;
 
-    if (!reserve_pages(pages)) return NULL;
+    if (unlikely(!reserve_pages(pages))) return NULL;
 
     size_t vaddr;
-    if (!vmem_alloc(&kvmm, size, &vaddr)) {
+    if (unlikely(!vmem_alloc(&kvmm, size, &vaddr))) {
         unreserve_pages(pages);
         return NULL;
     }
 
     int error = prepare_map(vaddr, size);
-    if (error) {
+    if (unlikely(error)) {
         vmem_free(&kvmm, vaddr, size);
         unreserve_pages(pages);
         return NULL;
@@ -52,16 +53,16 @@ static bool vmrealloc_large(void *ptr, size_t orig_size, size_t size) {
 
     size_t extra_pages = orig_size < size ? (size - orig_size) >> PAGE_SHIFT : 0;
     if (extra_pages) {
-        if (!reserve_pages(extra_pages)) return false;
+        if (unlikely(!reserve_pages(extra_pages))) return false;
 
         int error = prepare_map((uintptr_t)ptr + orig_size, size - orig_size);
-        if (error) {
+        if (unlikely(error)) {
             unreserve_pages(extra_pages);
             return false;
         }
     }
 
-    if (!vmem_resize(&kvmm, (uintptr_t)ptr, size)) {
+    if (unlikely(!vmem_resize(&kvmm, (uintptr_t)ptr, size))) {
         if (extra_pages) unreserve_pages(extra_pages);
         return false;
     }
@@ -84,9 +85,9 @@ static void vmfree_large(void *ptr, size_t size) {
 }
 
 void *vmalloc(size_t size) {
-    if (size == 0) return ZERO_PTR;
+    if (unlikely(size == 0)) return ZERO_PTR;
 
-    if (size <= PAGE_SIZE) {
+    if (likely(size <= PAGE_SIZE)) {
         return kalloc(size);
     } else {
         return vmalloc_large(size);
@@ -94,26 +95,26 @@ void *vmalloc(size_t size) {
 }
 
 void *vmrealloc(void *ptr, size_t orig_size, size_t size) {
-    if (ptr == NULL || ptr == ZERO_PTR) return vmalloc(size);
-    if (size == 0) {
+    if (unlikely(ptr == NULL || ptr == ZERO_PTR)) return vmalloc(size);
+    if (unlikely(size == 0)) {
         vmfree(ptr, orig_size);
         return ZERO_PTR;
     }
 
-    if (orig_size <= PAGE_SIZE && size <= PAGE_SIZE) return krealloc(ptr, orig_size, size);
-    if (orig_size > PAGE_SIZE && size > PAGE_SIZE && vmrealloc_large(ptr, orig_size, size)) return ptr;
+    if (likely(orig_size <= PAGE_SIZE && size <= PAGE_SIZE)) return krealloc(ptr, orig_size, size);
+    if (likely(orig_size > PAGE_SIZE && size > PAGE_SIZE && vmrealloc_large(ptr, orig_size, size))) return ptr;
 
     void *ptr2 = vmalloc(size);
-    if (!ptr2) return NULL;
+    if (unlikely(!ptr2)) return NULL;
     memcpy(ptr2, ptr, orig_size < size ? orig_size : size);
     vmfree(ptr, orig_size);
     return ptr2;
 }
 
 void vmfree(void *ptr, size_t size) {
-    if (ptr == NULL || ptr == ZERO_PTR) return;
+    if (unlikely(ptr == NULL || ptr == ZERO_PTR)) return;
 
-    if (size <= PAGE_SIZE) {
+    if (likely(size <= PAGE_SIZE)) {
         kfree(ptr, size);
     } else {
         vmfree_large(ptr, size);
