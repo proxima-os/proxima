@@ -2,6 +2,7 @@
 #define HYDROGEN_SCHED_SCHED_H
 
 #include "util/list.h"
+#include "util/spinlock.h"
 #include "util/time.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -32,6 +33,7 @@ typedef enum {
 } task_state_t;
 
 typedef struct {
+    struct cpu *cpu;
     size_t references;
 
     list_node_t node;
@@ -54,14 +56,30 @@ typedef struct {
     proc_t *process;
     list_node_t proc_node;
 
+    spinlock_t wait_lock;
+    bool already_exited;
     list_t waiting_tasks;
 } task_t;
 
-extern task_t *current_task;
+typedef struct {
+    list_t queues[SCHED_PRIO_MAX + 1];
+    int cur_queue;
+    int preempt_level;
+    uint64_t queue_map;
+    uint64_t switch_time;
+    timer_event_t switch_event;
+    spinlock_t lock;
+    uint64_t count;
+
+    task_t *current;
+    task_t idle;
+} sched_t;
 
 typedef void (*task_func_t)(void *);
 
 void init_sched(void);
+
+void init_sched_cpu(void);
 
 void sched_yield(void);
 
@@ -71,13 +89,14 @@ void disable_preempt(void);
 void enable_preempt(void);
 
 // if `timeout` isn't 0, as soon as `read_time` exceeds it, this function will return false.
-bool sched_stop(uint64_t timeout);
+// if `lock` isn't null, it's unlocked before yielding and relocked afterwards in a way that avoids lost wakeups
+bool sched_stop(uint64_t timeout, spinlock_t *lock);
 
 void sched_start(task_t *task);
 
 _Noreturn void sched_exit(void);
 
-int sched_create(task_t **out, task_func_t func, void *ctx);
+int sched_create(task_t **out, task_func_t func, void *ctx, struct cpu *cpu);
 
 void task_ref(task_t *task);
 

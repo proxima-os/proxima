@@ -29,6 +29,7 @@ add_executable(hydrogen
     src/util/list.c
     src/util/panic.c
     src/util/print.c
+    src/util/spinlock.c
     src/util/string.c
     src/util/string.S
     src/util/time.c

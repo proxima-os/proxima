@@ -6,6 +6,7 @@
 #include "mem/pmap.h"
 #include "mem/pmm.h"
 #include "util/panic.h"
+#include "util/spinlock.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -28,6 +29,7 @@ static uint64_t term_height;
 static uint64_t term_pitch;
 static uint64_t term_x;
 static uint64_t term_y;
+static spinlock_t term_lock;
 
 static const unsigned char font[CHAR_HEIGHT * 256];
 
@@ -206,9 +208,9 @@ static void do_vprintk(const char *format, va_list args, printk_func_t func, voi
 void vprintk(const char *format, va_list args) {
     if (!framebuffer) return;
 
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&term_lock);
     do_vprintk(format, args, print_char, NULL);
-    restore_irq(state);
+    spin_unlock(&term_lock, state);
 }
 
 void printk(const char *format, ...) {

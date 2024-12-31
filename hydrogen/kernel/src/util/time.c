@@ -12,6 +12,7 @@
 #include "sched/sched.h"
 #include "util/panic.h"
 #include "util/print.h"
+#include "util/spinlock.h"
 #include <limits.h>
 #include <stdint.h>
 
@@ -123,19 +124,16 @@ static void init_tsc(void) {
     tsc2lapic_conv = timeconv_create(tsc_freq, lapic_freq);
 }
 
-static timer_event_t *timer_events;
-static timer_event_t *next_timer_event;
-
 static void reprogram_timer(void) {
-    if (next_timer_event != NULL) {
+    if (current_cpu.events != NULL) {
         if (tsc_deadline_supported) {
-            wrmsr(MSR_TSC_DEADLINE, next_timer_event->timestamp + boot_tsc);
+            wrmsr(MSR_TSC_DEADLINE, current_cpu.events->timestamp + boot_tsc);
         } else {
             uint64_t cur = read_time();
             uint64_t ticks;
 
-            if (cur < next_timer_event->timestamp) {
-                ticks = timeconv_apply(tsc2lapic_conv, next_timer_event->timestamp - cur);
+            if (cur < current_cpu.events->timestamp) {
+                ticks = timeconv_apply(tsc2lapic_conv, current_cpu.events->timestamp - cur);
                 if (ticks == 0) ticks = 1;
                 else if (ticks > UINT32_MAX) ticks = UINT32_MAX;
             } else {
@@ -151,8 +149,10 @@ static void handle_timer_irq(UNUSED idt_frame_t *frame) {
     timer_event_t *trig_events = NULL;
     timer_event_t *last_trig_event = NULL;
 
+    spin_lock_noirq(&current_cpu_ptr->events_lock);
+
     for (;;) {
-        timer_event_t *event = next_timer_event;
+        timer_event_t *event = current_cpu.events;
         if (event == NULL) break;
         if (read_time() < event->timestamp) break;
 
@@ -160,42 +160,24 @@ static void handle_timer_irq(UNUSED idt_frame_t *frame) {
         // if there are other events at the same point in time, they will be in `event->right`
         // otherwise, the next event is `event->parent`
 
-        if (event->right) {
-            next_timer_event = event->right;
-
-            if (event->parent) {
-                event->parent->left = event->right;
-            } else {
-                timer_events = event->right;
-            }
-
-            event->right->parent = event->parent;
-        } else if (event->parent) {
-            next_timer_event = event->parent;
-            event->parent->left = NULL;
-        } else {
-            next_timer_event = NULL;
-            timer_events = NULL;
-        }
-
-        while (next_timer_event != NULL && next_timer_event->left != NULL) {
-            next_timer_event = next_timer_event->left;
-        }
+        current_cpu.events = event->next;
+        if (event->next) event->next->prev = NULL;
 
         event->queued = false;
 
-        event->right = NULL;
-        if (trig_events) last_trig_event->right = event;
+        event->next = NULL;
+        if (trig_events) last_trig_event->next = event;
         else trig_events = event;
         last_trig_event = event;
     }
 
     reprogram_timer();
+    spin_unlock_noirq(&current_cpu_ptr->events_lock);
 
     disable_preempt();
 
     while (trig_events != NULL) {
-        timer_event_t *next = trig_events->right;
+        timer_event_t *next = trig_events->next;
         trig_events->handler(trig_events);
         trig_events = next;
     }
@@ -214,79 +196,70 @@ void init_time(void) {
     init_tsc();
     idt_install(IRQ_TIMER, handle_timer_irq);
 
+    init_time_cpu();
+}
+
+void init_time_cpu(void) {
     if (tsc_deadline_supported) {
-        printk("time: using tsc deadline for events\n");
         lapic_setup_timer(TIMER_TSC_DEADLINE);
     } else {
-        printk("time: using lapic oneshot for events\n");
         lapic_setup_timer(TIMER_ONESHOT);
     }
 }
 
 void queue_event(timer_event_t *event) {
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&event->lock);
+    event->cpu = current_cpu_ptr;
+    spin_lock_noirq(&event->cpu->events_lock);
 
-    timer_event_t *parent = NULL;
-    timer_event_t *cur = timer_events;
+    timer_event_t *prev = NULL;
+    timer_event_t *next = current_cpu.events;
 
-    while (cur != NULL) {
-        parent = cur;
-        cur = event->timestamp < cur->timestamp ? cur->left : cur->right;
+    while (next != NULL && next->timestamp < event->timestamp) {
+        prev = next;
+        next = next->next;
     }
 
-    event->parent = parent;
-    event->left = NULL;
-    event->right = NULL;
+    event->prev = prev;
+    event->next = next;
     event->queued = true;
+    event->cpu = current_cpu_ptr;
 
-    if (parent != NULL) {
-        if (event->timestamp < parent->timestamp) parent->left = event;
-        else parent->right = event;
-
-        if (event->timestamp < next_timer_event->timestamp) {
-            next_timer_event = event;
-            reprogram_timer();
-        }
+    if (prev) {
+        prev->next = event;
     } else {
-        timer_events = event;
-        next_timer_event = event;
+        current_cpu.events = event;
         reprogram_timer();
     }
 
-    restore_irq(state);
+    spin_unlock_noirq(&event->cpu->events_lock);
+    spin_unlock(&event->lock, state);
 }
 
 void cancel_event(timer_event_t *event) {
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&event->lock);
+    cpu_t *cpu = event->cpu;
 
-    if (event->queued) {
-        // Remove it from the tree
-        timer_event_t *replacement = event->left ? event->left : event->right;
-        if (replacement != NULL) replacement->parent = event->parent;
+    if (cpu != NULL) {
+        spin_lock_noirq(&cpu->events_lock);
 
-        if (event->parent != NULL) {
-            if (event->timestamp < event->parent->timestamp) {
-                event->parent->left = replacement;
+        if (event->queued) {
+            if (event->next) event->next->prev = event->prev;
+
+            if (event->prev) {
+                event->prev->next = event->next;
             } else {
-                event->parent->right = replacement;
+                cpu->events = event->next;
+                if (cpu == current_cpu_ptr) reprogram_timer();
             }
-        } else {
-            timer_events = replacement;
+
+            event->queued = false;
         }
 
-        // Make sure next_event is still valid
-        if (event == next_timer_event) {
-            next_timer_event = event->right ? event->right : event->parent;
-
-            while (next_timer_event != NULL && next_timer_event->left != NULL) {
-                next_timer_event = next_timer_event->left;
-            }
-        }
-
-        event->queued = false;
+        spin_unlock_noirq(&cpu->events_lock);
     }
 
-    restore_irq(state);
+    spin_unlock(&event->lock, state);
 }
 
 timeconv_t timeconv_create(uint64_t src_freq, uint64_t dst_freq) {

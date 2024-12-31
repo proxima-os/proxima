@@ -1,6 +1,7 @@
 #ifndef HYDROGEN_UTIL_TIME_H
 #define HYDROGEN_UTIL_TIME_H
 
+#include "util/spinlock.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -12,11 +13,12 @@ typedef struct {
 typedef struct timer_event {
     uint64_t timestamp;                    // read_time value at which the event is triggered
     void (*handler)(struct timer_event *); // executed in interrupt context
-    bool queued;                           // read-only
     // private fields
-    struct timer_event *parent;
-    struct timer_event *left;
-    struct timer_event *right;
+    struct cpu *cpu;
+    struct timer_event *prev;
+    struct timer_event *next;
+    spinlock_t lock;
+    bool queued;
 } timer_event_t;
 
 extern uint64_t tsc_freq;
@@ -25,6 +27,8 @@ extern timeconv_t tsc2ns_conv;
 extern timeconv_t ns2tsc_conv;
 
 void init_time(void);
+
+void init_time_cpu(void);
 
 void queue_event(timer_event_t *event);
 

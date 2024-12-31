@@ -3,10 +3,10 @@
 #include "asm/irq.h"
 #include "asm/pio.h"
 #include "compiler.h"
+#include "cpu/cpu.h"
 #include "drv/pci.h"
 #include "drv/pic.h"
 #include "limine.h"
-#include "mem/heap.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "mem/vheap.h"
@@ -26,6 +26,7 @@
 #include "util/list.h"
 #include "util/panic.h"
 #include "util/print.h"
+#include "util/spinlock.h"
 #include "util/time.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -42,25 +43,21 @@ static struct {
 static size_t defer_head;
 static size_t defer_tail;
 static semaphore_t defer_sema;
+static spinlock_t defer_lock;
 
 static size_t pending_work;
 static list_t work_waiters;
+static spinlock_t work_lock;
 
-// Must be called with IRQs disabled
 static void register_work_start(void) {
-    pending_work += 1;
+    __atomic_fetch_add(&pending_work, 1, __ATOMIC_ACQ_REL);
 }
 
 static void register_work_end(void) {
-    if (__atomic_fetch_sub(&pending_work, 1, __ATOMIC_ACQ_REL) != 1) return;
-
-    irq_state_t state = save_disable_irq();
-
-    // check again, an irq may have increased it
-    // nothing special has to be done if that happened, since whatever increased it will call register_work_end too
-
-    if (pending_work == 0) {
+    if (__atomic_fetch_sub(&pending_work, 1, __ATOMIC_ACQ_REL) == 1) {
+        irq_state_t state = save_disable_irq();
         disable_preempt();
+        spin_lock_noirq(&work_lock);
 
         task_t *task = node_to_obj(task_t, node, work_waiters.first);
 
@@ -71,20 +68,21 @@ static void register_work_end(void) {
         }
 
         list_clear(&work_waiters);
-        enable_preempt();
-    }
 
-    restore_irq(state);
+        spin_unlock_noirq(&work_lock);
+        enable_preempt();
+        restore_irq(state);
+    }
 }
 
 static void defer_executor_task(UNUSED void *ctx) {
     for (;;) {
         sema_wait(&defer_sema, 0);
 
-        irq_state_t state = save_disable_irq();
+        irq_state_t state = spin_lock(&defer_lock);
         size_t idx = defer_head++;
         defer_head %= MAX_DEFER_COUNT;
-        restore_irq(state);
+        spin_unlock(&defer_lock, state);
 
         defers[idx].handler(defers[idx].ctx);
         register_work_end();
@@ -105,7 +103,7 @@ void init_acpi_tables(void) {
 
 void init_acpi_fully(void) {
     task_t *task;
-    int error = create_thread(&task, defer_executor_task, NULL);
+    int error = create_thread(&task, defer_executor_task, NULL, boot_cpu);
     if (error) panic("failed to create deferred work executor (%d)", error);
     task_deref(task);
 
@@ -232,7 +230,7 @@ void uacpi_kernel_stall(uacpi_u8 usec) {
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec) {
-    sched_stop(read_time() + timeconv_apply(ns2tsc_conv, msec * 1000000));
+    sched_stop(read_time() + timeconv_apply(ns2tsc_conv, msec * 1000000), NULL);
 }
 
 uacpi_handle uacpi_kernel_create_mutex(void) {
@@ -357,29 +355,31 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(UNUSED uacpi_interrupt_han
 }
 
 uacpi_handle uacpi_kernel_create_spinlock(void) {
-    return vmalloc(0);
+    spinlock_t *lock = vmalloc(sizeof(*lock));
+    if (lock) memset(lock, 0, sizeof(*lock));
+    return lock;
 }
 
 void uacpi_kernel_free_spinlock(uacpi_handle handle) {
-    vmfree(handle, 0);
+    vmfree(handle, sizeof(spinlock_t));
 }
 
-uacpi_cpu_flags uacpi_kernel_lock_spinlock(UNUSED uacpi_handle handle) {
-    return save_disable_irq();
+uacpi_cpu_flags uacpi_kernel_lock_spinlock(uacpi_handle handle) {
+    return spin_lock(handle);
 }
 
 void uacpi_kernel_unlock_spinlock(UNUSED uacpi_handle handle, uacpi_cpu_flags flags) {
-    restore_irq(flags);
+    spin_unlock(handle, flags);
 }
 
 uacpi_status uacpi_kernel_schedule_work(UNUSED uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx) {
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&defer_lock);
 
     size_t idx = defer_tail;
     size_t next_tail = (idx + 1) % MAX_DEFER_COUNT;
 
     if (next_tail == defer_head) {
-        restore_irq(state);
+        spin_unlock(&defer_lock, state);
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
@@ -389,22 +389,18 @@ uacpi_status uacpi_kernel_schedule_work(UNUSED uacpi_work_type type, uacpi_work_
     defers[idx].ctx = ctx;
     register_work_start();
 
-    restore_irq(state);
+    spin_unlock(&defer_lock, state);
     sema_signal(&defer_sema);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_wait_for_work_completion(void) {
-    if (__atomic_load_n(&pending_work, __ATOMIC_ACQUIRE) == 0) {
-        return UACPI_STATUS_OK;
-    }
+    irq_state_t state = spin_lock(&work_lock);
 
-    irq_state_t state = save_disable_irq();
-
-    if (pending_work != 0) {
+    if (__atomic_load_n(&pending_work, __ATOMIC_ACQUIRE) != 0) {
         list_insert_tail(&work_waiters, &current_task->node);
-        sched_stop(0);
+        sched_stop(0, &work_lock);
     }
 
     restore_irq(state);

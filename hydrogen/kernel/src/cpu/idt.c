@@ -1,5 +1,4 @@
 #include "cpu/idt.h"
-#include "asm/irq.h"
 #include "asm/tables.h"
 #include "compiler.h"
 #include "cpu/gdt.h"
@@ -34,22 +33,20 @@ void init_idt(void) {
     idt[2].ist = 1;
     idt[8].ist = 1;
     idt[18].ist = 1;
+}
 
+void load_idt(void) {
     lidt(idt, sizeof(idt));
 }
 
 void idt_install(uint8_t vector, idt_handler_t handler) {
-    irq_state_t state = save_disable_irq();
-    ASSERT(handlers[vector] == NULL);
-    handlers[vector] = handler;
-    restore_irq(state);
+    UNUSED idt_handler_t old = __atomic_exchange_n(&handlers[vector], handler, __ATOMIC_ACQ_REL);
+    ASSERT(old == NULL);
 }
 
 void idt_uninstall(uint8_t vector, UNUSED idt_handler_t handler) {
-    irq_state_t state = save_disable_irq();
-    ASSERT(handlers[vector] == handler);
-    handlers[vector] = NULL;
-    restore_irq(state);
+    UNUSED idt_handler_t old = __atomic_exchange_n(&handlers[vector], NULL, __ATOMIC_ACQ_REL);
+    ASSERT(old == handler);
 }
 
 void idt_dispatch(idt_frame_t *frame) {

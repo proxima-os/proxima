@@ -2,6 +2,8 @@
 #include "asm/irq.h"
 #include "compiler.h"
 #include "cpu/cpu.h"
+#include "cpu/exc.h"
+#include "cpu/idt.h"
 #include "cpu/lapic.h"
 #include "cpu/xsave.h"
 #include "drv/acpi.h"
@@ -44,7 +46,12 @@ static void init_kernel(UNUSED void *ctx) {
 
 _Noreturn void kernel_main(void) {
     boot_tsc = read_time();
-    init_cpu();
+
+    detect_cpu();
+    init_idt();
+    init_exc();
+    init_cpu(&bsp_init_data);
+    init_sched_cpu();
 
     init_print();
     printk("Starting Hydrogen...\n");
@@ -52,19 +59,20 @@ _Noreturn void kernel_main(void) {
     if (!LIMINE_BASE_REVISION_SUPPORTED) panic("requested base revision not supported");
 
     init_pmm();
-    init_xsave();
+    init_xsave_bsp();
     init_acpi_tables();
     init_lapic();
     init_pic();
     enable_irq();
     init_hpet();
     init_time();
+    init_smp();
     reclaim_loader_memory();
     init_proc();
     init_sched();
 
     task_t *init_task;
-    int error = create_thread(&init_task, init_kernel, NULL);
+    int error = create_thread(&init_task, init_kernel, NULL, NULL);
     if (error) panic("failed to create init task (%d)", error);
     task_deref(init_task);
 

@@ -2,6 +2,7 @@
 #include "asm/irq.h"
 #include "asm/mmio.h"
 #include "asm/pio.h"
+#include "cpu/cpu.h"
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
 #include "cpu/lapic.h"
@@ -17,6 +18,7 @@
 #include "util/list.h"
 #include "util/panic.h"
 #include "util/print.h"
+#include "util/spinlock.h"
 #include <stdint.h>
 
 typedef struct {
@@ -25,6 +27,7 @@ typedef struct {
     uint32_t id;
     uint32_t gsi_base;
     uint32_t num_irqs;
+    spinlock_t lock;
 } ioapic_t;
 
 static list_t ioapics;
@@ -127,7 +130,7 @@ void init_pic(void) {
 
             for (unsigned i = 0; i < apic->num_irqs; i++) {
                 ioapic_write(apic, IOREDTBL(i), IOAPIC_MASKED | IRQ_SPURIOUS);
-                ioapic_write(apic, IOREDTBL(i) + 1, cpu_apic_id << 24);
+                ioapic_write(apic, IOREDTBL(i) + 1, boot_cpu->apic_id << 24);
             }
         } else if (cur->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
             struct acpi_madt_interrupt_source_override *entry = (void *)cur;
@@ -168,12 +171,12 @@ void pic_setup_irq(uint32_t irq, uint32_t vector, uint32_t flags) {
     if (apic == NULL) panic("no i/o apic for gsi %u", irq);
     uint32_t i = irq - apic->gsi_base;
 
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&apic->lock);
 
     if ((ioapic_read(apic, IOREDTBL(i)) & IOAPIC_MASKED) == 0) panic("tried to set up gsi %u twice", irq);
     ioapic_write(apic, IOREDTBL(i), vector | flags);
 
-    restore_irq(state);
+    spin_unlock(&apic->lock, state);
 }
 
 void pic_reset_isa(uint32_t irq) {
@@ -185,12 +188,12 @@ void pic_reset_irq(uint32_t irq) {
     if (apic == NULL) panic("no i/o apic for gsi %u", irq);
     uint32_t i = irq - apic->gsi_base;
 
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&apic->lock);
 
     if (ioapic_read(apic, IOREDTBL(i)) & IOAPIC_MASKED) panic("tried to reset gsi %u twice", irq);
     ioapic_write(apic, IOREDTBL(i), IOAPIC_MASKED);
 
-    restore_irq(state);
+    spin_unlock(&apic->lock, state);
 }
 
 #define NUM_IRQ_VECS (IRQ_DEV_MAX - IRQ_DEV_MIN)
@@ -248,22 +251,14 @@ void free_irq_vectors(int base, uint32_t count) {
 void pic_install_vector(int vector, void (*handler)(void *), void *ctx) {
     ASSERT(handler != NULL);
 
-    irq_state_t state = save_disable_irq();
-
     if (dev_irq_handlers[vector - IRQ_DEV_MIN].func) panic("tried to override device irq handler for %d", vector);
     dev_irq_handlers[vector - IRQ_DEV_MIN].func = handler;
     dev_irq_handlers[vector - IRQ_DEV_MIN].ctx = ctx;
-
-    restore_irq(state);
 }
 
 void pic_uninstall_vector(int vector, void (*handler)(void *)) {
     ASSERT(handler != NULL);
 
-    irq_state_t state = save_disable_irq();
-
     if (dev_irq_handlers[vector - IRQ_DEV_MIN].func != handler) panic("tried to uninstall wrong vector (%d)", vector);
     dev_irq_handlers[vector - IRQ_DEV_MIN].func = NULL;
-
-    restore_irq(state);
 }

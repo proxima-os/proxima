@@ -1,7 +1,9 @@
 #ifndef HYDROGEN_CPU_XSAVE_H
 #define HYDROGEN_CPU_XSAVE_H
 
-void init_xsave(void);
+void init_xsave_bsp(void);
+
+void init_xsave_ap(void);
 
 void *alloc_xsave(void);
 

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define MSR_TSC_DEADLINE 0x6e0
+#define MSR_GS_BASE 0xc0000101
 
 static inline uint64_t rdmsr(uint32_t msr) {
     uint32_t low, high;

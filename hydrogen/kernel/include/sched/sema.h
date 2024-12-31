@@ -2,6 +2,7 @@
 #define HYDROGEN_SCHED_SEMA_H
 
 #include "util/list.h"
+#include "util/spinlock.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -9,6 +10,7 @@
 typedef struct {
     size_t value;
     list_t waiters;
+    spinlock_t lock;
 } semaphore_t;
 
 bool sema_try_wait(semaphore_t *sema);

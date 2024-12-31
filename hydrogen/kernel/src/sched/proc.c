@@ -8,6 +8,7 @@
 #include "util/idmap.h"
 #include "util/list.h"
 #include "util/panic.h"
+#include "util/spinlock.h"
 
 proc_t kernel_proc = {.references = 1};
 
@@ -18,9 +19,6 @@ void init_proc(void) {
     int id = idmap_alloc(&proc_map, &kernel_proc);
     if (id < 0) panic("failed to allocate id for kernel process (%d)", id);
     ASSERT(id == 0);
-
-    proc_ref(&kernel_proc);
-    list_insert_tail(&kernel_proc.tasks, &current_task->proc_node);
 
     identity_t *ident = vmalloc(sizeof(*ident));
     if (!ident) panic("failed to allocate identity for kernel process");
@@ -47,28 +45,24 @@ void proc_deref(proc_t *proc) {
 }
 
 void proc_make_zombie(proc_t *proc) {
-    mutex_unlock(&proc->lock);
-
-    disable_preempt();
-
     list_foreach(proc->waiting_tasks, task_t, priv_node, cur) {
         sched_start(cur);
     }
 
-    enable_preempt();
+    list_clear(&proc->waiting_tasks);
 }
 
-int create_thread(task_t **out, task_func_t func, void *ctx) {
+int create_thread(task_t **out, task_func_t func, void *ctx, cpu_t *cpu) {
     task_t *task;
-    int error = sched_create(&task, func, ctx);
+    int error = sched_create(&task, func, ctx, cpu);
     if (error) return error;
 
     proc_ref(current_proc);
     task->process = current_proc;
 
-    mutex_lock(&current_proc->lock);
+    irq_state_t state = spin_lock(&current_proc->lock);
     list_insert_tail(&current_proc->tasks, &task->proc_node);
-    mutex_unlock(&current_proc->lock);
+    spin_unlock(&current_proc->lock, state);
 
     sched_start(task);
     *out = task;
@@ -80,7 +74,7 @@ int create_process(proc_t **out, task_func_t func, void *ctx) {
     if (!proc) return ERR_OUT_OF_MEMORY;
 
     task_t *task;
-    int error = sched_create(&task, func, ctx);
+    int error = sched_create(&task, func, ctx, NULL);
     if (error) {
         vmfree(proc, sizeof(*proc));
         return error;
@@ -113,32 +107,25 @@ int create_process(proc_t **out, task_func_t func, void *ctx) {
 }
 
 bool proc_wait(proc_t *proc, uint64_t timeout) {
-    irq_state_t state = save_disable_irq();
+    irq_state_t state = spin_lock(&proc->lock);
 
     bool success = list_is_empty(&proc->tasks);
 
     if (!success) {
         list_insert_tail(&proc->waiting_tasks, &current_task->priv_node);
-        success = sched_stop(timeout);
+        success = sched_stop(timeout, &proc->lock);
         if (!success) list_remove(&proc->waiting_tasks, &current_task->priv_node);
     }
 
-    restore_irq(state);
+    spin_unlock(&proc->lock, state);
     return success;
 }
 
-// identities are managed with an rcu-like system: any given identity_t object is immutable except for its ref count,
-// preemption is disabled while initially getting the current identity and re-enabled after incrementing its ref count,
-// changing identity involves copying the current one, xchg'ing it with the old pointer, and decrementing the ref count
-// of the old one
-//
-// it'd have been simpler to just use a mutex, but querying the identity is incredibly common and changing it is
-// incredibly uncommon, so this is better for performance
 identity_t *get_identity(void) {
-    disable_preempt();
+    spin_lock_noirq(&current_proc->lock);
     identity_t *ident = current_proc->identity;
     ident->references += 1;
-    enable_preempt();
+    spin_unlock_noirq(&current_proc->lock);
     return ident;
 }
 
@@ -153,8 +140,14 @@ void ident_deref(identity_t *ident) {
 }
 
 void set_identity(identity_t *identity) {
-    ident_deref(__atomic_exchange_n(&current_proc->identity, identity, __ATOMIC_ACQ_REL));
     ident_ref(identity);
+
+    spin_lock_noirq(&current_proc->lock);
+    identity_t *old = current_proc->identity;
+    current_proc->identity = identity;
+    spin_unlock_noirq(&current_proc->lock);
+
+    ident_deref(old);
 }
 
 identity_t *clone_identity(void) {

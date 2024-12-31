@@ -1,6 +1,11 @@
 #ifndef HYDROGEN_CPU_CPU_H
 #define HYDROGEN_CPU_CPU_H
 
+#include "cpu/gdt.h"
+#include "cpu/tss.h"
+#include "sched/sched.h"
+#include "util/spinlock.h"
+#include "util/time.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -16,6 +21,37 @@ extern bool fsgsbase_supported;
 extern bool smap_supported;
 extern uint64_t cpu_paddr_mask;
 
-void init_cpu(void);
+typedef struct cpu {
+    struct cpu *self;
+    size_t id;
+    cpu_gdt_t gdt;
+    cpu_tss_t tss;
+    uint32_t apic_id;
+    bool apic_avail;
+    uint32_t acpi_id;
+    sched_t sched;
+
+    timer_event_t *events;
+    spinlock_t events_lock;
+
+    struct cpu *next;
+} cpu_t;
+
+typedef struct {
+    cpu_t cpu;
+    tss_init_data_t tss;
+} cpu_init_data_t;
+
+#define current_cpu (*(__seg_gs cpu_t *)0)
+#define current_cpu_ptr (current_cpu.self)
+#define current_task (*(task_t * __seg_gs *)offsetof(cpu_t, sched.current))
+
+extern cpu_init_data_t bsp_init_data;
+
+#define boot_cpu (&bsp_init_data.cpu)
+
+void detect_cpu(void);
+
+void init_cpu(cpu_init_data_t *data);
 
 #endif // HYDROGEN_CPU_CPU_H

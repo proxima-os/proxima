@@ -1,6 +1,9 @@
 #include "cpu/exc.h"
 #include "asm/cr.h"
+#include "asm/idle.h"
+#include "compiler.h"
 #include "cpu/idt.h"
+#include "cpu/irqvec.h"
 #include "util/panic.h"
 
 static void handle_fatal_exception(idt_frame_t *frame) {
@@ -37,6 +40,10 @@ static void handle_fatal_exception(idt_frame_t *frame) {
           read_cr8());
 }
 
+static void handle_ipi_panic(UNUSED idt_frame_t *frame) {
+    for (;;) cpu_idle();
+}
+
 void init_exc(void) {
     idt_install(0, handle_fatal_exception);
     idt_install(1, handle_fatal_exception);
@@ -58,4 +65,5 @@ void init_exc(void) {
     idt_install(19, handle_fatal_exception);
     idt_install(20, handle_fatal_exception);
     idt_install(21, handle_fatal_exception);
+    idt_install(IPI_PANIC, handle_ipi_panic);
 }

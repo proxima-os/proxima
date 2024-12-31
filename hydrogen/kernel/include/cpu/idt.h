@@ -33,6 +33,8 @@ typedef void (*idt_handler_t)(idt_frame_t *frame);
 
 void init_idt(void);
 
+void load_idt(void);
+
 void idt_install(uint8_t vector, idt_handler_t handler);
 
 void idt_uninstall(uint8_t vector, idt_handler_t handler);
