@@ -68,8 +68,8 @@ static void lapic_write32(unsigned reg, uint32_t value) {
 
 static void lapic_write64(unsigned reg, uint64_t value) {
     if (!using_x2apic) {
+        mmio_write32(xapic_regs, reg + 0x10, value >> 32);
         mmio_write32(xapic_regs, reg, value);
-        mmio_write32(xapic_regs, reg + 0x10, value);
     } else {
         wrmsr(0x800 + (reg >> 4), value);
     }
@@ -145,8 +145,8 @@ _Noreturn void do_start_ap(cpu_start_data_t *data) {
     init_sched_cpu();
     init_xsave_ap();
     do_init_lapic(data->madt);
-    __atomic_store_n(&data->basic_init_done, true, __ATOMIC_RELEASE);
     init_time_cpu();
+    __atomic_store_n(&data->basic_init_done, true, __ATOMIC_RELEASE);
 
     printk("smp: cpu %U initialized\n", current_cpu.id);
 
@@ -159,6 +159,7 @@ static LIMINE_REQ struct limine_mp_request mp_req = {.id = LIMINE_MP_REQUEST, .f
 void init_lapic(void) {
     if (!mp_req.response) panic("no response to mp request");
     using_x2apic = mp_req.response->flags & LIMINE_MP_X2APIC;
+    printk("lapic: using_x2apic = %d\n", using_x2apic);
 
     // Map xAPIC registers
     struct uacpi_table table;
