@@ -28,6 +28,7 @@ static bool umip_supported;
 __attribute__((aligned(16))) static unsigned char fatal_stack[KERNEL_STACK_SIZE];
 
 cpu_init_data_t bsp_init_data = {.tss.fatal_stack = (uintptr_t)fatal_stack + sizeof(fatal_stack)};
+size_t num_cpus = 1;
 
 void detect_cpu(void) {
     unsigned eax, ebx, ecx, edx;

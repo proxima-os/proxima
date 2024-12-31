@@ -36,10 +36,6 @@ void remap(uintptr_t vaddr, size_t size, int flags);
 // You MUST call prepare_map on the range first
 void unmap(uintptr_t vaddr, size_t size);
 
-// You MUST call prepare_map on the range first. Does not call unreserve_pages.
-// Note that the affected area MUST have been mapped by alloc_and_map.
-void unmap_and_free(uintptr_t vaddr, size_t size);
-
 // Extends the HHDM to cover a new range
 void extend_hhdm(uint64_t paddr, size_t size);
 

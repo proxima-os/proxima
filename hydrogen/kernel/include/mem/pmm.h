@@ -20,6 +20,9 @@ typedef union page {
         struct free_obj *objs;
         size_t free;
     } heap;
+    struct {
+        union page *shootdown_next;
+    } anon;
 } page_t;
 
 typedef struct {

@@ -49,7 +49,7 @@ extern void start_ap(struct limine_mp_info *);
 
 #define LAPIC_ICR_PENDING (1ul << 12)
 #define LAPIC_ICR_ASSERT (1ul << 14)
-#define LAPIC_ICR_BROADCAST (2ul << 18)
+#define LAPIC_ICR_BROADCAST (3ul << 18)
 
 #define LAPIC_LVT_NMI (4u << 8)
 #define LAPIC_LVT_ACTIVE_LOW (1u << 13)
@@ -214,8 +214,6 @@ void init_smp(void) {
     cpu_t *first = NULL;
     cpu_t *last = NULL;
 
-    size_t id = 1;
-
     // Create start data
     for (uint64_t i = 0; i < mp_req.response->cpu_count; i++) {
         struct limine_mp_info *cpu = mp_req.response->cpus[i];
@@ -236,7 +234,7 @@ void init_smp(void) {
         void *xsave = alloc_xsave();
         if (!xsave) panic("failed to allocate xsave area for ap idle task");
 
-        data->init_data.cpu.id = id++;
+        data->init_data.cpu.id = num_cpus++;
         data->init_data.cpu.apic_id = cpu->lapic_id;
         data->init_data.cpu.acpi_id = cpu->processor_id;
         data->init_data.cpu.sched.idle.xsave_area = xsave;

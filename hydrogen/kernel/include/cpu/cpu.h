@@ -47,6 +47,7 @@ typedef struct {
 #define current_task (*(task_t * __seg_gs *)offsetof(cpu_t, sched.current))
 
 extern cpu_init_data_t bsp_init_data;
+extern size_t num_cpus;
 
 #define boot_cpu (&bsp_init_data.cpu)
 

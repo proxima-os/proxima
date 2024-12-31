@@ -70,7 +70,7 @@ static bool vmrealloc_large(void *ptr, size_t orig_size, size_t size) {
     if (extra_pages) {
         alloc_and_map((uintptr_t)ptr + orig_size, size - orig_size);
     } else {
-        unmap_and_free((uintptr_t)ptr + size, orig_size - size);
+        unmap((uintptr_t)ptr + size, orig_size - size);
     }
 
     return true;
@@ -79,7 +79,7 @@ static bool vmrealloc_large(void *ptr, size_t orig_size, size_t size) {
 static void vmfree_large(void *ptr, size_t size) {
     size = (size + PAGE_MASK) & ~PAGE_MASK;
 
-    unmap_and_free((uintptr_t)ptr, size);
+    unmap((uintptr_t)ptr, size);
     vmem_free(&kvmm, (uintptr_t)ptr, size);
     unreserve_pages(size >> PAGE_SHIFT);
 }

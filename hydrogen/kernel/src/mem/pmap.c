@@ -1,12 +1,18 @@
 #include "mem/pmap.h"
 #include "asm/cr.h"
+#include "asm/idle.h"
+#include "compiler.h"
 #include "cpu/cpu.h"
+#include "cpu/idt.h"
+#include "cpu/irqvec.h"
+#include "cpu/lapic.h"
 #include "hydrogen/error.h"
 #include "mem/heap.h"
 #include "mem/pmm.h"
 #include "sched/mutex.h"
 #include "string.h"
 #include "util/panic.h"
+#include <stdatomic.h>
 #include <stdint.h>
 
 /**
@@ -24,6 +30,7 @@
 #define PTE_DIRTY 0x40
 #define PTE_HUGE 0x80
 #define PTE_GLOBAL 0x100
+#define PTE_ANON 0x200
 #define PTE_ADDR 0xffffffffff000
 #define PTE_NX 0x8000000000000000
 
@@ -36,6 +43,48 @@ static void invlpg(uintptr_t vaddr) {
     asm("invlpg (%0)" ::"r"(vaddr) : "memory");
 }
 
+static mutex_t shootdown_lock;
+static size_t shootdown_rem;
+
+typedef struct {
+    page_t *pages_to_free;
+    bool shootdown;
+} shootdown_ctx_t;
+
+static void handle_shootdown_ipi(UNUSED idt_frame_t *frame) {
+    if (likely(pg_supported)) {
+        size_t cr4 = read_cr4();
+        write_cr4(cr4 & ~CR4_PGE);
+        write_cr4(cr4);
+    } else {
+        write_cr3(read_cr3());
+    }
+
+    __atomic_fetch_sub(&shootdown_rem, 1, __ATOMIC_ACQ_REL);
+
+    lapic_eoi();
+}
+
+static void shootdown_commit(shootdown_ctx_t *ctx) {
+    if (num_cpus != 1 && ctx->shootdown) {
+        mutex_lock(&shootdown_lock);
+
+        shootdown_rem = num_cpus - 1;
+        lapic_send_ipi(NULL, IPI_SHOOTDOWN);
+        while (__atomic_load_n(&shootdown_rem, __ATOMIC_ACQUIRE) != 0) cpu_relax();
+
+        mutex_unlock(&shootdown_lock);
+    }
+
+    union page *page = ctx->pages_to_free;
+
+    while (page != NULL) {
+        union page *next = page->anon.shootdown_next;
+        free_page(page);
+        page = next;
+    }
+}
+
 static void *alloc_table(void) {
     void *ptr = kalloc(0x1000); // kalloc's alignment guarantees are strong enough for this
     if (ptr) memset(ptr, 0, 0x1000);
@@ -43,6 +92,8 @@ static void *alloc_table(void) {
 }
 
 void init_pmap(void) {
+    idt_install(IPI_SHOOTDOWN, handle_shootdown_ipi);
+
     kernel_pt = alloc_table();
     if (kernel_pt == NULL) panic("failed to allocate kernel page table");
 }
@@ -248,6 +299,9 @@ void alloc_and_map(uintptr_t vaddr, size_t size) {
                     }
 
                     uint64_t pte = cur_phys | flags;
+
+                    if ((cur_phys & PAGE_MASK) == 0) pte |= PTE_ANON;
+
                     cur_phys += 4096;
                     cur_phys_rem -= 1;
 
@@ -292,6 +346,8 @@ void remap(uintptr_t vaddr, size_t size, int flags) {
     if (!(flags & PMAP_EXEC) && nx_supported) mask |= PTE_NX;
 
     uint64_t *l4 = kernel_pt;
+    shootdown_ctx_t shootdown = {};
+
     mutex_lock(&kernel_pt_lock);
 
     for (size_t l4i = l4i_start; l4i <= l4i_end; l4i++) {
@@ -318,6 +374,7 @@ void remap(uintptr_t vaddr, size_t size, int flags) {
                         if (new_entry != l1e) {
                             l1[l1i] = new_entry;
                             invlpg(vaddr);
+                            shootdown.shootdown = true;
                         }
                     }
 
@@ -332,6 +389,8 @@ void remap(uintptr_t vaddr, size_t size, int flags) {
 
         l3i_start = 0;
     }
+
+    shootdown_commit(&shootdown);
 
     mutex_unlock(&kernel_pt_lock);
 }
@@ -356,6 +415,8 @@ void unmap(uintptr_t vaddr, size_t size) {
     ASSERT((l4i_start & 256) == (l4i_end & 256));
 
     uint64_t *l4 = kernel_pt;
+    shootdown_ctx_t shootdown = {};
+
     mutex_lock(&kernel_pt_lock);
 
     for (size_t l4i = l4i_start; l4i <= l4i_end; l4i++) {
@@ -379,6 +440,13 @@ void unmap(uintptr_t vaddr, size_t size) {
                     if (l1e != 0) {
                         l1[l1i] = 0;
                         invlpg(vaddr);
+                        shootdown.shootdown = true;
+
+                        if (l1e & PTE_ANON) {
+                            page_t *page = phys_to_page(l1e & PTE_ADDR);
+                            page->anon.shootdown_next = shootdown.pages_to_free;
+                            shootdown.pages_to_free = page;
+                        }
                     }
 
                     vaddr += 0x1000;
@@ -393,70 +461,7 @@ void unmap(uintptr_t vaddr, size_t size) {
         l3i_start = 0;
     }
 
-    mutex_unlock(&kernel_pt_lock);
-}
-
-void unmap_and_free(uintptr_t vaddr, size_t size) {
-    ASSERT((vaddr & 0xfff) == 0);
-    ASSERT((size & PAGE_MASK) == 0);
-
-    if (size == 0) return;
-
-    uintptr_t end = vaddr + (size - 1);
-    ASSERT(end > vaddr);
-
-    size_t l4i_start = (vaddr >> 39) & 511;
-    size_t l3i_start = (vaddr >> 30) & 511;
-    size_t l2i_start = (vaddr >> 21) & 511;
-    size_t l1i_start = (vaddr >> 12) & 511;
-
-    size_t l4i_end = (end >> 39) & 511;
-    size_t l3i_end = 511;
-    size_t l2i_end = 511;
-    size_t l1i_end = 511;
-
-    ASSERT((l4i_start & 256) == (l4i_end & 256));
-
-    uint64_t *l4 = kernel_pt;
-    mutex_lock(&kernel_pt_lock);
-
-    for (size_t l4i = l4i_start; l4i <= l4i_end; l4i++) {
-        if (l4i == l4i_end) l3i_end = (end >> 30) & 511;
-
-        uint64_t *l3 = phys_to_virt(l4[l4i] & PTE_ADDR);
-
-        for (size_t l3i = l3i_start; l3i <= l3i_end; l3i++) {
-            if (l4i == l4i_end && l3i == l3i_end) l2i_end = (end >> 21) & 511;
-
-            uint64_t *l2 = phys_to_virt(l3[l3i] & PTE_ADDR);
-
-            for (size_t l2i = l2i_start; l2i <= l2i_end; l2i++) {
-                if (l4i == l4i_end && l3i == l3i_end && l2i == l2i_end) l1i_end = (end >> 12) & 511;
-
-                uint64_t *l1 = phys_to_virt(l2[l2i] & PTE_ADDR);
-
-                for (size_t l1i = l1i_start; l1i <= l1i_end; l1i++) {
-                    uint64_t l1e = l1[l1i];
-
-                    if (l1e != 0) {
-                        l1[l1i] = 0;
-                        invlpg(vaddr);
-
-                        uint64_t phys = l1e & PTE_ADDR;
-                        if ((phys & PAGE_MASK) == 0) free_page(phys_to_page(phys));
-                    }
-
-                    vaddr += 0x1000;
-                }
-
-                l1i_start = 0;
-            }
-
-            l2i_start = 0;
-        }
-
-        l3i_start = 0;
-    }
+    shootdown_commit(&shootdown);
 
     mutex_unlock(&kernel_pt_lock);
 }
