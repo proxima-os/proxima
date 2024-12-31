@@ -159,7 +159,6 @@ static LIMINE_REQ struct limine_mp_request mp_req = {.id = LIMINE_MP_REQUEST, .f
 void init_lapic(void) {
     if (!mp_req.response) panic("no response to mp request");
     using_x2apic = mp_req.response->flags & LIMINE_MP_X2APIC;
-    printk("lapic: using_x2apic = %d\n", using_x2apic);
 
     // Map xAPIC registers
     struct uacpi_table table;
