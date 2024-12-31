@@ -11,16 +11,17 @@
 #define MUTEX_LOCKED_NOQUEUE 1
 #define MUTEX_LOCKED_QUEUED 2
 
+static inline bool do_cmpxchg(char *state, char *wanted, char value) {
+    bool success;
+    asm volatile("cmpxchg %[value], %[state]"
+                 : "=@ccz"(success), "+a"(*wanted), [state] "+m" (*state)
+                 : [value] "r"(value));
+    return success;
+}
+
 bool mutex_try_lock(mutex_t *mutex) {
     char wanted = MUTEX_UNLOCKED;
-    return __atomic_compare_exchange_n(
-            &mutex->state,
-            &wanted,
-            MUTEX_LOCKED_NOQUEUE,
-            true,
-            __ATOMIC_ACQUIRE,
-            __ATOMIC_RELAXED
-    );
+    return do_cmpxchg(&mutex->state, &wanted, MUTEX_LOCKED_NOQUEUE);
 }
 
 void mutex_lock(mutex_t *mutex) {
@@ -31,14 +32,7 @@ bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
     for (int i = 0; i < SPIN_ITERS; i++) {
         char wanted = MUTEX_UNLOCKED;
 
-        if (__atomic_compare_exchange_n(
-                    &mutex->state,
-                    &wanted,
-                    MUTEX_LOCKED_NOQUEUE,
-                    true,
-                    __ATOMIC_ACQUIRE,
-                    __ATOMIC_RELAXED
-            )) {
+        if (do_cmpxchg(&mutex->state, &wanted, MUTEX_LOCKED_NOQUEUE)) {
             return true;
         }
 
@@ -69,14 +63,7 @@ bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
 
 void mutex_unlock(mutex_t *mutex) {
     char wanted = MUTEX_LOCKED_NOQUEUE;
-    if (__atomic_compare_exchange_n(
-                &mutex->state,
-                &wanted,
-                MUTEX_UNLOCKED,
-                false,
-                __ATOMIC_RELEASE,
-                __ATOMIC_RELAXED
-        )) {
+    if (do_cmpxchg(&mutex->state, &wanted, MUTEX_UNLOCKED)) {
         return;
     }
 
