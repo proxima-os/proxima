@@ -19,6 +19,7 @@
 #include "uacpi/kernel_api.h"
 #include "uacpi/platform/arch_helpers.h"
 #include "uacpi/platform/types.h"
+#include "uacpi/sleep.h"
 #include "uacpi/status.h"
 #include "uacpi/types.h"
 #include "uacpi/uacpi.h"
@@ -29,6 +30,7 @@
 #include "util/spinlock.h"
 #include "util/time.h"
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define EARLY_TABLE_BUF_SIZE 4096
@@ -101,6 +103,45 @@ void init_acpi_tables(void) {
     if (uacpi_unlikely_error(ret)) panic("failed to set up early table access: %s", uacpi_status_to_string(ret));
 }
 
+static semaphore_t shutdown_sema;
+
+static uacpi_interrupt_ret handle_power_button(UNUSED uacpi_handle ctx) {
+    sema_signal(&shutdown_sema);
+    return UACPI_INTERRUPT_HANDLED;
+}
+
+static void shutdown_task(UNUSED void *ctx) {
+    for (;;) {
+        sema_wait(&shutdown_sema, 0);
+
+        uint64_t time = read_time();
+
+        for (int i = 3; i > 0; i--) {
+            printk("\rshutting down in %d seconds...", i);
+            time += tsc_freq;
+            sched_stop(time, NULL);
+        }
+
+        printk("\nshutting down...\n");
+
+        uacpi_status ret = uacpi_prepare_for_sleep_state(UACPI_SLEEP_STATE_S5);
+        if (uacpi_unlikely_error(ret)) {
+            printk("sleep preparation failed: %s\n", uacpi_status_to_string(ret));
+            continue;
+        }
+
+        irq_state_t state = save_disable_irq();
+        ret = uacpi_enter_sleep_state(UACPI_SLEEP_STATE_S5);
+        if (uacpi_unlikely_error(ret)) {
+            printk("failed to enter sleep: %s\n", uacpi_status_to_string(ret));
+            restore_irq(state);
+            continue;
+        }
+
+        printk("shutdown commanded\n");
+    }
+}
+
 void init_acpi_fully(void) {
     task_t *task;
     int error = create_thread(&task, defer_executor_task, NULL, boot_cpu);
@@ -121,6 +162,15 @@ void init_acpi_fully(void) {
 
     ret = uacpi_finalize_gpe_initialization();
     if (uacpi_unlikely_error(ret)) panic("uacpi: failed to finalize init: %s", uacpi_status_to_string(ret));
+
+    error = create_thread(&task, shutdown_task, NULL, NULL);
+    if (error) panic("failed to create shutdown listener (%d)", error);
+    task_deref(task);
+
+    ret = uacpi_install_fixed_event_handler(UACPI_FIXED_EVENT_POWER_BUTTON, handle_power_button, NULL);
+    if (uacpi_unlikely_error(ret)) {
+        panic("uacpi: failed to install power button handler: %s", uacpi_status_to_string(ret));
+    }
 }
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
