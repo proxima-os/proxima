@@ -127,6 +127,7 @@ void kfree(void *ptr, size_t size) {
         if (unlikely(page->heap.free++ == 0)) {
             page->heap.prev = NULL;
             page->heap.next = heap_pages[order];
+            if (page->heap.next) page->heap.next->heap.prev = page;
             heap_pages[order] = page;
         } else if (unlikely(page->heap.free == (PAGE_SIZE >> order))) {
             if (page->heap.prev) page->heap.prev->heap.next = page->heap.next;
