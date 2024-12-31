@@ -38,7 +38,7 @@ void proc_ref(proc_t *proc);
 
 void proc_deref(proc_t *proc);
 
-// must be called with proc->lock held and irqs disabled, unlocks proc->lock
+// must be called with proc->lock held and preemption disabled
 void proc_make_zombie(proc_t *proc);
 
 int create_thread(task_t **out, task_func_t func, void *ctx, cpu_t *cpu);

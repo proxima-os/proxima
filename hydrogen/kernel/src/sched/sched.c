@@ -78,21 +78,11 @@ static void free_resources(task_t *task) {
     __atomic_fetch_sub(&task->cpu->sched.count, 1, __ATOMIC_RELAXED);
 }
 
-static void make_zombie(task_t *task) {
-    free_resources(task);
+static list_t reaper_list;
+static spinlock_t reaper_lock;
+static task_t *reaper_task;
 
-    disable_preempt();
-    spin_lock_noirq(&task->process->lock);
-
-    list_remove(&task->process->tasks, &task->proc_node);
-    if (list_is_empty(&task->process->tasks)) proc_make_zombie(task->process);
-
-    spin_unlock_noirq(&task->process->lock);
-    enable_preempt();
-
-    proc_deref(task->process);
-    task->process = NULL;
-}
+static void do_start(sched_t *sched, task_t *task);
 
 // Ran right after switch_task
 static void finish_switch(task_t *old_task) {
@@ -100,8 +90,13 @@ static void finish_switch(task_t *old_task) {
     current_cpu.tss.rsp[0] = current_task->kernel_stack;
 
     if (old_task->state == TASK_EXITING) {
-        make_zombie(old_task);
-        task_deref(old_task);
+        spin_lock_noirq(&reaper_lock);
+        list_insert_tail(&reaper_list, &old_task->priv_node);
+        spin_unlock_noirq(&reaper_lock);
+
+        if (reaper_task->cpu != current_cpu_ptr) spin_lock_noirq(&reaper_task->cpu->sched.lock);
+        do_start(&reaper_task->cpu->sched, reaper_task);
+        if (reaper_task->cpu != current_cpu_ptr) spin_unlock_noirq(&reaper_task->cpu->sched.lock);
     }
 }
 
@@ -164,7 +159,7 @@ static void do_yield(sched_t *sched, bool preempt) {
 }
 
 static void check_preempt(sched_t *sched) {
-    if (sched->cur_queue > current_task->priority) {
+    if (sched->cur_queue > sched->current->priority) {
         if (sched == &current_cpu_ptr->sched) do_yield(sched, true);
         else lapic_send_ipi((cpu_t *)node_to_obj(cpu_t, sched, sched), IPI_RESCHEDULE);
     }
@@ -206,6 +201,46 @@ static void boost_task_func(UNUSED void *ctx) {
     }
 }
 
+static void reaper_func(UNUSED void *ctx) {
+    for (;;) {
+        irq_state_t state = spin_lock(&reaper_lock);
+        while (list_is_empty(&reaper_list)) sched_stop(0, &reaper_lock);
+        task_t *task = node_to_obj(task_t, priv_node, list_remove_head(&reaper_list));
+        spin_unlock(&reaper_lock, state);
+
+        free_resources(task);
+
+        state = save_disable_irq();
+        disable_preempt();
+
+        spin_lock_noirq(&task->process->lock);
+
+        list_remove(&task->process->tasks, &task->proc_node);
+        if (list_is_empty(&task->process->tasks)) proc_make_zombie(task->process);
+
+        spin_unlock_noirq(&task->process->lock);
+        spin_lock_noirq(&task->wait_lock);
+
+        task->already_exited = true;
+
+        task_t *cur = node_to_obj(task_t, priv_node, task->waiting_tasks.first);
+        while (cur != NULL) {
+            task_t *next = node_to_obj(task_t, priv_node, cur->priv_node.next);
+            sched_start(cur);
+            cur = next;
+        }
+
+        spin_unlock_noirq(&task->wait_lock);
+        enable_preempt();
+        restore_irq(state);
+
+        proc_deref(task->process);
+        task->process = NULL;
+
+        task_deref(task);
+    }
+}
+
 static void handle_ipi_reschedule(UNUSED idt_frame_t *frame) {
     sched_t *sched = &current_cpu_ptr->sched;
     spin_lock_noirq(&sched->lock);
@@ -224,10 +259,13 @@ void init_sched(void) {
     tsc_timeslice_min = timeconv_apply(ns2tsc_conv, TIMESLICE_MIN);
     tsc_timeslice_inc = timeconv_apply(ns2tsc_conv, TIMESLICE_INC);
 
-    task_t *boost_task;
-    int error = create_thread(&boost_task, boost_task_func, NULL, NULL);
+    task_t *task;
+    int error = create_thread(&task, boost_task_func, NULL, NULL);
     if (error) panic("failed to create priority boost task (%d)", error);
-    task_deref(boost_task);
+    task_deref(task);
+
+    error = create_thread(&reaper_task, reaper_func, NULL, NULL);
+    if (error) panic("failed to create reaper task (%d)", error);
 }
 
 void init_sched_cpu(void) {
@@ -309,7 +347,7 @@ static void do_start(sched_t *sched, task_t *task) {
     }
 
     if (task->state == TASK_STOPPED) {
-        task->state = TASK_RUNNING;
+        task->state = TASK_READY;
         cancel_event(&task->timeout_event);
 
         enqueue_task(sched, task, false);
@@ -359,11 +397,13 @@ static void handle_switch_event(UNUSED timer_event_t *event) {
     sched_t *sched = &current_cpu_ptr->sched;
     spin_lock_noirq(&sched->lock);
 
-    ASSERT(current_task->state == TASK_RUNNING);
+    if (likely(current_task->state != TASK_READY)) {
+        ASSERT(current_task->state == TASK_RUNNING);
 
-    if (current_task->priority > 0 && current_task->priority < SCHED_RT_MIN) {
-        current_task->priority -= 1;
-        current_task->timeslice_tot += tsc_timeslice_inc;
+        if (current_task->priority > 0 && current_task->priority < SCHED_RT_MIN) {
+            current_task->priority -= 1;
+            current_task->timeslice_tot += tsc_timeslice_inc;
+        }
     }
 
     do_yield(sched, false);
@@ -429,10 +469,11 @@ int sched_create(task_t **out, task_func_t func, void *ctx, struct cpu *cpu) {
         }
 
         task->cpu = cur_best_cpu;
-        __atomic_fetch_add(&cur_best_cpu->sched.count, 1, __ATOMIC_RELAXED);
     } else {
         task->cpu = cpu;
     }
+
+    __atomic_fetch_add(&task->cpu->sched.count, 1, __ATOMIC_RELAXED);
 
     *out = task;
     return 0;

@@ -45,8 +45,11 @@ void proc_deref(proc_t *proc) {
 }
 
 void proc_make_zombie(proc_t *proc) {
-    list_foreach(proc->waiting_tasks, task_t, priv_node, cur) {
+    task_t *cur = node_to_obj(task_t, priv_node, proc->waiting_tasks.first);
+    while (cur != NULL) {
+        task_t *next = node_to_obj(task_t, priv_node, cur->priv_node.next);
         sched_start(cur);
+        cur = next;
     }
 
     list_clear(&proc->waiting_tasks);
