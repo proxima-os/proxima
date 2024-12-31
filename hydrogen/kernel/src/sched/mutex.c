@@ -49,6 +49,8 @@ bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
         success = sched_stop(timeout, &mutex->lock);
         if (!success) list_remove(&mutex->waiters, &current_task->priv_node);
     } else {
+        // not racy because we own the spinlock
+        __atomic_store_n(&mutex->state, MUTEX_LOCKED, __ATOMIC_RELEASE);
         success = true;
     }
 
