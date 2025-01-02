@@ -10,8 +10,10 @@
 #include "hydrogen/error.h"
 #include "mem/memlayout.h"
 #include "mem/vheap.h"
+#include "mem/vmm.h"
 #include "sched/proc.h"
 #include "string.h"
+#include "sys/vdso.h"
 #include "util/list.h"
 #include "util/panic.h"
 #include "util/spinlock.h"
@@ -87,7 +89,11 @@ static void do_start(sched_t *sched, task_t *task);
 // Ran right after switch_task
 static void finish_switch(task_t *old_task) {
     xrestore();
+    current_cpu.kernel_stack = current_task->kernel_stack;
     current_cpu.tss.rsp[0] = current_task->kernel_stack;
+
+    vmm_t *vmm = current_proc->vmm;
+    if (vmm != old_task->process->vmm) vmm_switch(vmm);
 
     if (old_task->state == TASK_EXITING) {
         spin_lock_noirq(&reaper_lock);

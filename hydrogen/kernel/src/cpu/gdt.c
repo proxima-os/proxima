@@ -12,6 +12,8 @@ void init_gdt(cpu_t *cpu) {
     uintptr_t tss = (uintptr_t)&cpu->tss;
     gdt->kernel_code = 0x209b0000000000;
     gdt->kernel_data = 0x40930000000000;
+    gdt->user_code = 0x20fb0000000000;
+    gdt->user_data = 0x40f30000000000;
     gdt->tss_low = (sizeof(cpu->tss) - 1) | ((tss & 0xffffff) << 16) | (0x89ul << 40) | ((tss & 0xff000000) << 32);
     gdt->tss_high = tss >> 32;
 

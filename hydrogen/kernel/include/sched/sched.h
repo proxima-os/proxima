@@ -107,4 +107,6 @@ void sched_set_priority(task_t *task, int priority, bool inf_timeslice);
 // Waits until the given task exits. Timeout has the same meaning as in sched_stop
 bool sched_wait(task_t *task, uint64_t timeout);
 
+_Noreturn void enter_user_mode(uintptr_t rip, uintptr_t rsp);
+
 #endif // HYDROGEN_SCHED_SCHED_H

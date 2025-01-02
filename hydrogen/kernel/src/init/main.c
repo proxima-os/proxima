@@ -12,11 +12,15 @@
 #include "drv/pic.h"
 #include "limine.h"
 #include "mem/pmm.h"
+#include "mem/vmm.h"
 #include "sched/proc.h"
 #include "sched/sched.h"
+#include "string.h"
+#include "sys/vdso.h"
 #include "util/panic.h"
 #include "util/print.h"
 #include "util/time.h"
+#include <stddef.h>
 #include <stdint.h>
 
 __attribute__((used, section(".requests0"))) LIMINE_REQUESTS_START_MARKER;
@@ -31,17 +35,32 @@ static void init_process_func(UNUSED void *ctx) {
            stats.avail << (PAGE_SHIFT - 10),
            stats.free << (PAGE_SHIFT - 10));
 
-    printk("TODO: run init executable\n");
+    uintptr_t addr = 0;
+    int error = map_vdso(&addr);
+    if (error) panic("failed to map vdso (%d)", error);
+
+    printk("vdso entry point: 0x%X\n", addr);
+
+    uintptr_t stack_base = 0;
+    error = vmm_add(&stack_base, PAGE_SIZE, VMM_READ | VMM_WRITE, NULL, 0);
+    if (error) panic("failed to allocate user stack (%d)", error);
+
+    enter_user_mode(addr, stack_base + PAGE_SIZE - 8);
 }
 
 static void init_kernel(UNUSED void *ctx) {
     init_pci_access();
     init_acpi_fully();
 
+    vmm_t *vmm;
+    int error = vmm_create(&vmm);
+    if (error) panic("failed to create init vmm (%d)", error);
+
     proc_t *proc;
-    int error = create_process(&proc, init_process_func, NULL);
+    error = create_process(&proc, init_process_func, NULL, vmm);
     if (error) panic("failed to create init process (%d)", error);
     proc_deref(proc);
+    vmm_deref(vmm);
 }
 
 _Noreturn void kernel_main(void) {
@@ -59,6 +78,7 @@ _Noreturn void kernel_main(void) {
     if (!LIMINE_BASE_REVISION_SUPPORTED) panic("requested base revision not supported");
 
     init_pmm();
+    init_vdso();
     init_xsave_bsp();
     init_acpi_tables();
     init_lapic();

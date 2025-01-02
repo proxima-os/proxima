@@ -10,18 +10,13 @@
 #include "drv/hpet.h"
 #include "limine.h"
 #include "sched/sched.h"
+#include "sys/vdso.h"
 #include "util/panic.h"
 #include "util/print.h"
 #include "util/spinlock.h"
 #include <limits.h>
 #include <stdint.h>
 
-uint64_t tsc_freq;
-uint64_t boot_tsc;
-timeconv_t tsc2ns_conv;
-timeconv_t ns2tsc_conv;
-
-static int64_t boot_timestamp;
 static uint64_t lapic_freq;
 static timeconv_t tsc2lapic_conv;
 
@@ -262,6 +257,10 @@ void cancel_event(timer_event_t *event) {
     }
 
     spin_unlock(&event->lock, state);
+}
+
+uint64_t read_time(void) {
+    return __builtin_ia32_rdtsc() - boot_tsc;
 }
 
 timeconv_t timeconv_create(uint64_t src_freq, uint64_t dst_freq) {

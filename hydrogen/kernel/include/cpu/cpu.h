@@ -4,6 +4,7 @@
 #include "cpu/gdt.h"
 #include "cpu/tss.h"
 #include "sched/sched.h"
+#include "util/list.h"
 #include "util/spinlock.h"
 #include "util/time.h"
 #include <stdbool.h>
@@ -23,6 +24,8 @@ extern uint64_t cpu_paddr_mask;
 
 typedef struct cpu {
     struct cpu *self;
+    uintptr_t syscall_temp;
+    uintptr_t kernel_stack;
     size_t id;
     cpu_gdt_t gdt;
     cpu_tss_t tss;
@@ -35,6 +38,9 @@ typedef struct cpu {
     spinlock_t events_lock;
 
     struct cpu *next;
+
+    struct pmap *pmap;
+    list_node_t pmap_node;
 } cpu_t;
 
 typedef struct {

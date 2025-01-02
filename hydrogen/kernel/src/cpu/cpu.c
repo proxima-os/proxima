@@ -5,6 +5,7 @@
 #include "cpu/idt.h"
 #include "cpu/tss.h"
 #include "mem/memlayout.h"
+#include "sys/syscall.h"
 #include <stdint.h>
 
 #define CR0_CLEAR_MASK (CR0_EM | CR0_TS)
@@ -89,4 +90,5 @@ void init_cpu(cpu_init_data_t *data) {
     init_gdt(&data->cpu);
     init_tss(&data->tss);
     load_idt();
+    syscall_init();
 }

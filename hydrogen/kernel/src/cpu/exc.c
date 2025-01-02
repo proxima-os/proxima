@@ -5,8 +5,11 @@
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
 #include "util/panic.h"
+#include <stdbool.h>
 
-static void handle_fatal_exception(idt_frame_t *frame) {
+void handle_fatal_exception(idt_frame_t *frame) {
+    if (frame->vector == 2 || frame->vector == 8 || frame->vector == 18) paranoid_enter();
+
     panic("unhandled exception %U (error code 0x%X) at 0x%X\n"
           "rax=0x%16X rbx=0x%16X rcx=0x%16X rdx=0x%16X\n"
           "rsi=0x%16X rdi=0x%16X rbp=0x%16X rsp=0x%16X\n"
@@ -58,7 +61,6 @@ void init_exc(void) {
     idt_install(11, handle_fatal_exception);
     idt_install(12, handle_fatal_exception);
     idt_install(13, handle_fatal_exception);
-    idt_install(14, handle_fatal_exception);
     idt_install(16, handle_fatal_exception);
     idt_install(17, handle_fatal_exception);
     idt_install(18, handle_fatal_exception);

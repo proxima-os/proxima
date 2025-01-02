@@ -29,7 +29,7 @@ static void *alloc_order(int order) {
     } else if (unlikely(order == PAGE_SHIFT)) {
         page_t *page = alloc_page_now();
 
-        if (page) {
+        if (likely(page)) {
             return page_to_virt(page);
         } else {
             return NULL;

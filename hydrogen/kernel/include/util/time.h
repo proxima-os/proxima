@@ -21,11 +21,6 @@ typedef struct timer_event {
     bool queued;
 } timer_event_t;
 
-extern uint64_t tsc_freq;
-extern uint64_t boot_tsc;
-extern timeconv_t tsc2ns_conv;
-extern timeconv_t ns2tsc_conv;
-
 void init_time(void);
 
 void init_time_cpu(void);
@@ -36,9 +31,7 @@ void cancel_event(timer_event_t *event);
 
 timeconv_t timeconv_create(uint64_t src_freq, uint64_t dst_freq);
 
-static inline uint64_t read_time(void) {
-    return __builtin_ia32_rdtsc() - boot_tsc;
-}
+uint64_t read_time(void);
 
 // returns current posix time in nanoseconds
 int64_t get_timestamp(void);

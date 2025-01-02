@@ -2,6 +2,7 @@
 #include "asm/irq.h"
 #include "hydrogen/error.h"
 #include "mem/vheap.h"
+#include "mem/vmm.h"
 #include "sched/mutex.h"
 #include "sched/sched.h"
 #include "string.h"
@@ -53,6 +54,9 @@ void proc_make_zombie(proc_t *proc) {
     }
 
     list_clear(&proc->waiting_tasks);
+
+    vmm_deref(proc->vmm);
+    proc->vmm = NULL;
 }
 
 int create_thread(task_t **out, task_func_t func, void *ctx, cpu_t *cpu) {
@@ -72,7 +76,7 @@ int create_thread(task_t **out, task_func_t func, void *ctx, cpu_t *cpu) {
     return 0;
 }
 
-int create_process(proc_t **out, task_func_t func, void *ctx) {
+int create_process(proc_t **out, task_func_t func, void *ctx, vmm_t *vmm) {
     proc_t *proc = vmalloc(sizeof(*proc));
     if (!proc) return ERR_OUT_OF_MEMORY;
 
@@ -98,6 +102,11 @@ int create_process(proc_t **out, task_func_t func, void *ctx) {
     proc->parent = current_proc;
     proc->id = id;
     proc->identity = get_identity();
+
+    if (vmm) proc->vmm = vmm;
+    else proc->vmm = current_proc->vmm;
+
+    if (proc->vmm) vmm_ref(proc->vmm);
 
     proc_ref(current_proc); // for proc->parent
 

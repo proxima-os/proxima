@@ -15,6 +15,7 @@
 #include "sched/sched.h"
 #include "sched/sema.h"
 #include "string.h"
+#include "sys/vdso.h"
 #include "uacpi/event.h"
 #include "uacpi/kernel_api.h"
 #include "uacpi/platform/arch_helpers.h"

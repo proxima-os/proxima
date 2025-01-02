@@ -1,3 +1,26 @@
+add_library(hydrogen-priv INTERFACE)
+target_include_directories(hydrogen-priv INTERFACE include ${UACPI_INCLUDES})
+
+set(sflag "-g")
+
+if (CMAKE_OBJCOPY MATCHES "^.*llvm-objcopy$")
+    set(sflag ${sflag} --strip-sections)
+else ()
+    set(sflag ${sflag} --strip-section-headers)
+endif ()
+
+set(tmp "${CMAKE_CURRENT_BINARY_DIR}/stripped-vdso")
+add_custom_command(OUTPUT "${tmp}"
+    COMMAND "${CMAKE_OBJCOPY}" "$<TARGET_FILE:vdso>" "${tmp}" ${sflag}
+    DEPENDS vdso
+    VERBATIM)
+
+set(out "${CMAKE_CURRENT_BINARY_DIR}/vdso.o")
+add_custom_command(OUTPUT "${out}"
+    COMMAND "${CMAKE_OBJCOPY}" "${tmp}" "${out}" -Ibinary -Oelf64-x86-64 --rename-section .data=.vdso
+    DEPENDS "${tmp}"
+    VERBATIM)
+
 add_executable(hydrogen
     src/cpu/cpu.c
     src/cpu/exc.c
@@ -20,11 +43,16 @@ add_executable(hydrogen
     src/mem/pmap.c
     src/mem/pmm.c
     src/mem/vheap.c
+    src/mem/vmm.c
     src/sched/mutex.c
     src/sched/proc.c
     src/sched/sched.c
     src/sched/sched.S
     src/sched/sema.c
+    src/sys/elf.c
+    src/sys/syscall.c
+    src/sys/syscall.S
+    src/sys/vdso.c
     src/util/idmap.c
     src/util/list.c
     src/util/panic.c
@@ -35,12 +63,12 @@ add_executable(hydrogen
     src/util/time.c
     src/util/xarray.c
     ${UACPI_SOURCES}
+    "${out}"
 )
 target_compile_definitions(hydrogen PRIVATE LIMINE_API_REVISION=2 UACPI_OVERRIDE_LIBC UACPI_SIZED_FREES)
 target_compile_options(hydrogen PRIVATE -ffreestanding -fno-pie -fno-stack-check -fno-stack-protector -mcmodel=kernel
     -mgeneral-regs-only -mno-red-zone)
-target_include_directories(hydrogen PRIVATE include ${UACPI_INCLUDES})
-target_link_libraries(hydrogen PRIVATE hydrogen-api)
+target_link_libraries(hydrogen PRIVATE hydrogen-api hydrogen-priv)
 target_link_options(hydrogen PRIVATE -nostdlib -static)
 target_link_script(hydrogen kernel.lds)
 

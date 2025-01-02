@@ -1,6 +1,7 @@
 #ifndef HYDROGEN_CPU_IDT_H
 #define HYDROGEN_CPU_IDT_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -38,5 +39,9 @@ void load_idt(void);
 void idt_install(uint8_t vector, idt_handler_t handler);
 
 void idt_uninstall(uint8_t vector, idt_handler_t handler);
+
+bool paranoid_enter(void);
+
+void paranoid_exit(bool swapped);
 
 #endif // HYDROGEN_CPU_IDT_H

@@ -4,6 +4,11 @@
 #include <stdint.h>
 
 #define MSR_TSC_DEADLINE 0x6e0
+#define MSR_EFER 0xc0000080
+#define MSR_EFER_SCE (1u << 0)
+#define MSR_STAR 0xc0000081
+#define MSR_LSTAR 0xc0000082
+#define MSR_FMASK 0xc0000084
 #define MSR_GS_BASE 0xc0000101
 
 static inline uint64_t rdmsr(uint32_t msr) {

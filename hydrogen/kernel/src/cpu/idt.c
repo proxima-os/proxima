@@ -1,4 +1,5 @@
 #include "cpu/idt.h"
+#include "asm/msr.h"
 #include "asm/tables.h"
 #include "compiler.h"
 #include "cpu/gdt.h"
@@ -47,6 +48,16 @@ void idt_install(uint8_t vector, idt_handler_t handler) {
 void idt_uninstall(uint8_t vector, UNUSED idt_handler_t handler) {
     UNUSED idt_handler_t old = __atomic_exchange_n(&handlers[vector], NULL, __ATOMIC_ACQ_REL);
     ASSERT(old == handler);
+}
+
+bool paranoid_enter(void) {
+    bool should_swap = (rdmsr(MSR_GS_BASE) & (1ul << 63)) == 0;
+    if (should_swap) asm("swapgs");
+    return should_swap;
+}
+
+void paranoid_exit(bool swapped) {
+    if (swapped) asm("swapgs");
 }
 
 void idt_dispatch(idt_frame_t *frame) {

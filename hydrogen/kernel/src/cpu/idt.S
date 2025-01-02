@@ -7,6 +7,10 @@
 .balign 16
 .type idt_stub_common, @function
 idt_stub_common:
+    testl $3, 24(%rsp)
+    jz 1f
+    swapgs
+1:
     sub $120, %rsp
     mov %rax, (%rsp)
     mov %rbx, 8(%rsp)
@@ -73,7 +77,10 @@ idt_stub_common:
     mov 104(%rsp), %r14
     mov 112(%rsp), %r15
     add $136, %rsp
-    iretq
+    testl $3, 8(%rsp)
+    jz 1f
+    swapgs
+1:  iretq
 .size idt_stub_common, . - idt_stub_common
 
 .pushsection ".rodata.idt_stubs", "a", @progbits

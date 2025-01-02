@@ -17,16 +17,28 @@ SECTIONS {
         *(.rodata .rodata.*)
     } :rodata
 
-    . = ALIGN(4K);
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    .vdso : {
+        __vdso_start = .;
+        KEEP(*(.vdso))
+        . = ALIGN(CONSTANT(MAXPAGESIZE));
+        __vdso_end = .;
+    }
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
     _erodata = .;
     .text : { *(.text .text.*) } :text
 
-    . = ALIGN(4K);
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
     _etext = .;
     .data : { *(.data .data.*) } :data
-    .bss : { *(.bss .bss.*) } :data
+    .bss : {
+        *(.bss .bss.*)
+        . = ALIGN(CONSTANT(MAXPAGESIZE));
+        vdso_info = .;
+        . += CONSTANT(MAXPAGESIZE);
+    } :data
 
-    . = ALIGN(4K);
     _end = .;
 
     /DISCARD/ : { *(.eh_frame* .note*) }

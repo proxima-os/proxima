@@ -21,6 +21,7 @@ typedef union page {
         size_t free;
     } heap;
     struct {
+        size_t references;
         union page *shootdown_next;
     } anon;
 } page_t;

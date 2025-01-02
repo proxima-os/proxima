@@ -7,7 +7,24 @@
 #define PMAP_WRITE 1
 #define PMAP_EXEC 2
 
+#define MAX_USER_VIRT_ADDR 0x7ffffffff000
 #define MIN_KERNEL_VIRT_ADDR 0xffff800000000000
+
+#define PTE_PRESENT 1
+#define PTE_WRITABLE 2
+#define PTE_USERSPACE 4
+#define PTE_ACCESSED 0x20
+#define PTE_DIRTY 0x40
+#define PTE_HUGE 0x80
+#define PTE_GLOBAL 0x100
+#define PTE_ANON 0x200
+#define PTE_ADDR 0xffffffffff000
+#define PTE_NX 0x8000000000000000
+
+#define PTE_CACHE_WT (1u << 3)
+#define PTE_CACHE_UC (3u << 3)
+#define PTE_CACHE_WP (1u << 6)
+#define PTE_CACHE_WC ((1u << 6) | (1u << 3))
 
 typedef enum {
     CACHE_WRITEBACK,
@@ -18,7 +35,19 @@ typedef enum {
     CACHE_WRITE_COMBINE,
 } cache_mode_t;
 
+typedef struct pmap pmap_t;
+
 void init_pmap(void);
+
+int pmap_create(pmap_t **out);
+
+// current pmap must be locked
+int pmap_clone(pmap_t **out);
+
+// must be called with irqs disabled
+void pmap_switch(pmap_t *target);
+
+void pmap_destroy(pmap_t *pmap);
 
 void switch_to_kernel_mappings(void);
 
