@@ -34,18 +34,18 @@
 #include <stdint.h>
 
 #define EARLY_TABLE_BUF_SIZE 4096
-#define MAX_DEFER_COUNT 256
 
 static uint64_t rsdp_addr;
 
-static struct {
+typedef struct uacpi_work {
+    list_node_t node;
     uacpi_work_handler handler;
     uacpi_handle ctx;
-} defers[MAX_DEFER_COUNT];
-static size_t defer_head;
-static size_t defer_tail;
+} uacpi_work_t;
+
+static list_t deferred_work;
 static semaphore_t defer_sema;
-static spinlock_t defer_lock;
+static mutex_t defer_lock;
 
 static size_t pending_work;
 static list_t work_waiters;
@@ -81,13 +81,13 @@ static void defer_executor_task(UNUSED void *ctx) {
     for (;;) {
         sema_wait(&defer_sema, 0);
 
-        irq_state_t state = spin_lock(&defer_lock);
-        size_t idx = defer_head++;
-        defer_head %= MAX_DEFER_COUNT;
-        spin_unlock(&defer_lock, state);
+        mutex_lock(&defer_lock);
+        uacpi_work_t *work = node_to_obj(uacpi_work_t, node, list_remove_head(&deferred_work));
+        mutex_unlock(&defer_lock);
 
-        defers[idx].handler(defers[idx].ctx);
+        work->handler(work->ctx);
         register_work_end();
+        vmfree(work, sizeof(*work));
     }
 }
 
@@ -103,43 +103,32 @@ void init_acpi_tables(void) {
     if (uacpi_unlikely_error(ret)) panic("failed to set up early table access: %s", uacpi_status_to_string(ret));
 }
 
-static semaphore_t shutdown_sema;
-
 static uacpi_interrupt_ret handle_power_button(UNUSED uacpi_handle ctx) {
-    sema_signal(&shutdown_sema);
-    return UACPI_INTERRUPT_HANDLED;
-}
+    uint64_t time = read_time();
 
-static void shutdown_task(UNUSED void *ctx) {
-    for (;;) {
-        sema_wait(&shutdown_sema, 0);
-
-        uint64_t time = read_time();
-
-        for (int i = 3; i > 0; i--) {
-            printk("\rshutting down in %d seconds...", i);
-            time += tsc_freq;
-            sched_stop(time, NULL);
-        }
-
-        printk("\nshutting down...\n");
-
-        uacpi_status ret = uacpi_prepare_for_sleep_state(UACPI_SLEEP_STATE_S5);
-        if (uacpi_unlikely_error(ret)) {
-            printk("sleep preparation failed: %s\n", uacpi_status_to_string(ret));
-            continue;
-        }
-
-        irq_state_t state = save_disable_irq();
-        ret = uacpi_enter_sleep_state(UACPI_SLEEP_STATE_S5);
-        if (uacpi_unlikely_error(ret)) {
-            printk("failed to enter sleep: %s\n", uacpi_status_to_string(ret));
-            restore_irq(state);
-            continue;
-        }
-
-        printk("shutdown commanded\n");
+    for (int i = 3; i > 0; i--) {
+        printk("\rshutting down in %d seconds...", i);
+        time += tsc_freq;
+        sched_stop(time, NULL);
     }
+
+    printk("\nshutting down...\n");
+
+    uacpi_status ret = uacpi_prepare_for_sleep_state(UACPI_SLEEP_STATE_S5);
+    if (uacpi_unlikely_error(ret)) {
+        printk("sleep preparation failed: %s\n", uacpi_status_to_string(ret));
+        return UACPI_INTERRUPT_HANDLED;
+    }
+
+    irq_state_t state = save_disable_irq();
+    ret = uacpi_enter_sleep_state(UACPI_SLEEP_STATE_S5);
+    if (uacpi_unlikely_error(ret)) {
+        printk("failed to enter sleep state: %s\n", uacpi_status_to_string(ret));
+        restore_irq(state);
+        return UACPI_INTERRUPT_HANDLED;
+    }
+
+    panic("shutdown failed");
 }
 
 void init_acpi_fully(void) {
@@ -162,10 +151,6 @@ void init_acpi_fully(void) {
 
     ret = uacpi_finalize_gpe_initialization();
     if (uacpi_unlikely_error(ret)) panic("uacpi: failed to finalize init: %s", uacpi_status_to_string(ret));
-
-    error = create_thread(&task, shutdown_task, NULL, NULL);
-    if (error) panic("failed to create shutdown listener (%d)", error);
-    task_deref(task);
 
     ret = uacpi_install_fixed_event_handler(UACPI_FIXED_EVENT_POWER_BUTTON, handle_power_button, NULL);
     if (uacpi_unlikely_error(ret)) {
@@ -352,14 +337,29 @@ typedef struct {
     uacpi_handle ctx;
     uint32_t irq;
     int vector;
+
+    semaphore_t sema;
+    task_t *dispatcher;
+    size_t count;
 } acpi_irq_ctx_t;
+
+static void acpi_irq_dispatcher(void *ptr) {
+    acpi_irq_ctx_t *ctx = ptr;
+
+    for (;;) {
+        sema_wait(&ctx->sema, 0);
+        if (__atomic_fetch_sub(&ctx->count, 1, __ATOMIC_ACQ_REL) == 0) break;
+
+        ctx->handler(ctx->ctx);
+        register_work_end();
+    }
+}
 
 static void acpi_irq_handler(void *ptr) {
     acpi_irq_ctx_t *ctx = ptr;
-
     register_work_start();
-    ctx->handler(ctx->ctx);
-    register_work_end();
+    __atomic_fetch_add(&ctx->count, 1, __ATOMIC_ACQUIRE);
+    sema_signal(&ctx->sema);
 }
 
 uacpi_status uacpi_kernel_install_interrupt_handler(
@@ -369,9 +369,8 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
         uacpi_handle *out_irq_handle
 ) {
     acpi_irq_ctx_t *context = vmalloc(sizeof(*context));
-    if (!context) {
-        return UACPI_STATUS_OUT_OF_MEMORY;
-    }
+    if (!context) return UACPI_STATUS_OUT_OF_MEMORY;
+    memset(context, 0, sizeof(*context));
 
     context->handler = handler;
     context->ctx = ctx;
@@ -379,10 +378,18 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
 
     int vector = alloc_irq_vectors(1, 1);
     if (vector < 0) {
+        vmfree(context, sizeof(*context));
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
     context->vector = vector;
+
+    int error = create_thread(&context->dispatcher, acpi_irq_dispatcher, context, boot_cpu);
+    if (error) {
+        free_irq_vectors(vector, 1);
+        vmfree(context, sizeof(*context));
+        return UACPI_STATUS_OUT_OF_MEMORY;
+    }
 
     pic_install_vector(vector, acpi_irq_handler, context);
     pic_setup_isa(irq, vector);
@@ -399,6 +406,11 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(UNUSED uacpi_interrupt_han
     pic_reset_isa(ctx->irq);
     pic_uninstall_vector(ctx->vector, acpi_irq_handler);
     free_irq_vectors(ctx->vector, 1);
+
+    sema_signal(&ctx->sema); // if the sema is signaled without incrementing count, the dispatcher will terminate
+    sched_wait(ctx->dispatcher, 0);
+
+    task_deref(ctx->dispatcher);
     vmfree(ctx, sizeof(*ctx));
 
     return UACPI_STATUS_OK;
@@ -423,23 +435,16 @@ void uacpi_kernel_unlock_spinlock(UNUSED uacpi_handle handle, uacpi_cpu_flags fl
 }
 
 uacpi_status uacpi_kernel_schedule_work(UNUSED uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx) {
-    irq_state_t state = spin_lock(&defer_lock);
+    uacpi_work_t *work = vmalloc(sizeof(*work));
+    if (!work) return UACPI_STATUS_OUT_OF_MEMORY;
+    work->handler = handler;
+    work->ctx = ctx;
 
-    size_t idx = defer_tail;
-    size_t next_tail = (idx + 1) % MAX_DEFER_COUNT;
+    mutex_lock(&defer_lock);
+    list_insert_tail(&deferred_work, &work->node);
+    mutex_unlock(&defer_lock);
 
-    if (next_tail == defer_head) {
-        spin_unlock(&defer_lock, state);
-        return UACPI_STATUS_OUT_OF_MEMORY;
-    }
-
-    defer_tail = next_tail;
-
-    defers[idx].handler = handler;
-    defers[idx].ctx = ctx;
     register_work_start();
-
-    spin_unlock(&defer_lock, state);
     sema_signal(&defer_sema);
 
     return UACPI_STATUS_OK;
@@ -453,6 +458,6 @@ uacpi_status uacpi_kernel_wait_for_work_completion(void) {
         sched_stop(0, &work_lock);
     }
 
-    restore_irq(state);
+    spin_unlock(&work_lock, state);
     return UACPI_STATUS_OK;
 }
