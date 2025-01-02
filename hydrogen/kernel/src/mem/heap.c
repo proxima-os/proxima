@@ -19,6 +19,7 @@ static page_t *heap_pages[PAGE_SHIFT + 1];
 static mutex_t heap_lock[PAGE_SHIFT + 1];
 
 static int size_to_order(size_t size) {
+    if (size < MIN_ALLOC_SIZE) size = MIN_ALLOC_SIZE;
     return 64 - __builtin_clzl(size - 1);
 }
 
@@ -85,9 +86,7 @@ static void *alloc_order(int order) {
 }
 
 void *kalloc(size_t size) {
-    if (size == 0) return ZERO_PTR;
-    if (size < MIN_ALLOC_SIZE) size = MIN_ALLOC_SIZE;
-
+    if (unlikely(size == 0)) return ZERO_PTR;
     return alloc_order(size_to_order(size));
 }
 
