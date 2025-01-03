@@ -21,7 +21,6 @@
 #include "util/panic.h"
 #include "util/print.h"
 #include "util/time.h"
-#include <__stdarg_va_list.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
