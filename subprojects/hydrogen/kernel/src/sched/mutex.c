@@ -58,14 +58,14 @@ bool mutex_lock_timeout(mutex_t *mutex, uint64_t timeout) {
 
 void mutex_unlock(mutex_t *mutex) {
     char wanted = MUTEX_LOCKED;
-    if (__atomic_compare_exchange_n(
+    if (likely(__atomic_compare_exchange_n(
                 &mutex->state,
                 &wanted,
                 MUTEX_UNLOCKED,
                 false,
                 __ATOMIC_ACQ_REL,
                 __ATOMIC_RELAXED
-        )) {
+        ))) {
         return;
     }
 
