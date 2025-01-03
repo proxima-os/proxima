@@ -11,7 +11,6 @@
 #include "cpu/xsave.h"
 #include "limine.h"
 #include "mem/kvmm.h"
-#include "mem/memlayout.h"
 #include "mem/pmap.h"
 #include "mem/vheap.h"
 #include "sched/sched.h"
@@ -223,13 +222,13 @@ void init_smp(void) {
         if (!data) panic("failed to allocate start data for ap");
         memset(data, 0, sizeof(*data));
 
-        void *stack = vmalloc(KERNEL_STACK_SIZE);
+        void *stack = allocate_kernel_stack();
         if (!stack) panic("failed to allocate idle stack for ap");
-        data->idle_stack = (uintptr_t)stack + KERNEL_STACK_SIZE;
+        data->idle_stack = (uintptr_t)stack;
 
-        stack = vmalloc(KERNEL_STACK_SIZE);
+        stack = allocate_kernel_stack();
         if (!stack) panic("failed to allocate fatal stack for ap");
-        data->init_data.tss.fatal_stack = (uintptr_t)stack + KERNEL_STACK_SIZE;
+        data->init_data.tss.fatal_stack = (uintptr_t)stack;
 
         void *xsave = alloc_xsave();
         if (!xsave) panic("failed to allocate xsave area for ap idle task");

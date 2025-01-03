@@ -42,7 +42,7 @@ typedef struct {
 
     task_ctx_t ctx;
     void *xsave_area;
-    uintptr_t kernel_stack;
+    void *kernel_stack;
 
     timer_event_t timeout_event;
     bool timed_out;
@@ -108,5 +108,10 @@ void sched_set_priority(task_t *task, int priority, bool inf_timeslice);
 bool sched_wait(task_t *task, uint64_t timeout);
 
 _Noreturn void enter_user_mode(uintptr_t rip, uintptr_t rsp);
+
+// returns the top of the stack
+void *allocate_kernel_stack(void);
+
+void free_kernel_stack(void *stack);
 
 #endif // HYDROGEN_SCHED_SCHED_H

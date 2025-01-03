@@ -8,7 +8,10 @@
 #include "cpu/tss.h"
 #include "cpu/xsave.h"
 #include "hydrogen/error.h"
+#include "mem/kvmm.h"
 #include "mem/memlayout.h"
+#include "mem/pmap.h"
+#include "mem/pmm.h"
 #include "mem/vheap.h"
 #include "mem/vmm.h"
 #include "sched/proc.h"
@@ -72,7 +75,7 @@ static void free_resources(task_t *task) {
     task->state = TASK_ZOMBIE;
 
     free_xsave(task->xsave_area);
-    vmfree((void *)task->kernel_stack - KERNEL_STACK_SIZE, KERNEL_STACK_SIZE);
+    free_kernel_stack(task->kernel_stack);
 
     task->xsave_area = NULL;
     task->kernel_stack = 0;
@@ -89,8 +92,8 @@ static void do_start(sched_t *sched, task_t *task);
 // Ran right after switch_task
 static void finish_switch(task_t *old_task) {
     xrestore();
-    current_cpu.kernel_stack = current_task->kernel_stack;
-    current_cpu.tss.rsp[0] = current_task->kernel_stack;
+    current_cpu.kernel_stack = (uintptr_t)current_task->kernel_stack;
+    current_cpu.tss.rsp[0] = (uintptr_t)current_task->kernel_stack;
 
     vmm_t *vmm = current_proc->vmm;
     if (vmm != old_task->process->vmm) vmm_switch(vmm);
@@ -438,7 +441,7 @@ int sched_create(task_t **out, task_func_t func, void *ctx, struct cpu *cpu) {
         return ERR_OUT_OF_MEMORY;
     }
 
-    void *stack = vmalloc(KERNEL_STACK_SIZE);
+    void *stack = allocate_kernel_stack();;
     if (!stack) {
         free_xsave(xsave);
         vmfree(task, sizeof(*task));
@@ -455,8 +458,8 @@ int sched_create(task_t **out, task_func_t func, void *ctx, struct cpu *cpu) {
     task->ctx.rbx = (uintptr_t)func;
     task->ctx.r12 = (uintptr_t)ctx;
     task->ctx.r13 = (uintptr_t)task;
-    task->kernel_stack = (uintptr_t)stack + KERNEL_STACK_SIZE;
-    task->ctx.rsp = task->kernel_stack - sizeof(const void *);
+    task->kernel_stack = stack;
+    task->ctx.rsp = (uintptr_t)task->kernel_stack - sizeof(const void *);
     *(const void **)task->ctx.rsp = &task_init_stub;
     task->xsave_area = xsave;
 
@@ -544,4 +547,34 @@ bool sched_wait(task_t *task, uint64_t timeout) {
 
     spin_unlock(&task->wait_lock, state);
     return state;
+}
+
+_Static_assert(KERNEL_STACK_SIZE % PAGE_SIZE == 0, "KERNEL_STACK_SIZE is not a multiple of PAGE_SIZE");
+
+void *allocate_kernel_stack(void) {
+    size_t pages = KERNEL_STACK_SIZE >> PAGE_SHIFT;
+    if (unlikely(!reserve_pages(pages))) return NULL;
+
+    size_t vaddr;
+    if (unlikely(!vmem_alloc(&kvmm, KERNEL_STACK_SIZE + PAGE_SIZE, &vaddr))) {
+        unreserve_pages(pages);
+        return NULL;
+    }
+
+    int error = prepare_map(vaddr + PAGE_SIZE, KERNEL_STACK_SIZE);
+    if (error) {
+        vmem_free(&kvmm, vaddr, KERNEL_STACK_SIZE + PAGE_SIZE);
+        unreserve_pages(pages);
+        return NULL;
+    }
+
+    alloc_and_map(vaddr + PAGE_SIZE, KERNEL_STACK_SIZE);
+    return (void *)(vaddr + PAGE_SIZE + KERNEL_STACK_SIZE);
+}
+
+void free_kernel_stack(void *stack) {
+    uintptr_t vaddr = (uintptr_t)stack - KERNEL_STACK_SIZE - PAGE_SIZE;
+    unmap(vaddr + PAGE_SIZE, KERNEL_STACK_SIZE);
+    vmem_free(&kvmm, vaddr, KERNEL_STACK_SIZE + PAGE_SIZE);
+    unreserve_pages(KERNEL_STACK_SIZE >> PAGE_SHIFT);
 }
