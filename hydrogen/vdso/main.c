@@ -1,3 +1,4 @@
+#include "compiler.h"
 #include "sys/sysvecs.h"
 #include "sys/vdso.h"
 #include "util/time.h"
@@ -52,7 +53,7 @@ static uint64_t get_ns_since_boot(void) {
     return timeconv_apply(tsc2ns_conv, get_time());
 }
 
-int64_t get_timestamp(void) {
+PROTECTED int64_t get_timestamp(void) {
     return __atomic_load_n(&boot_timestamp, __ATOMIC_ACQUIRE) + get_ns_since_boot();
 }
 

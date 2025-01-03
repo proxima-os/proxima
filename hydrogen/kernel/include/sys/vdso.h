@@ -1,6 +1,7 @@
 #ifndef HYDROGEN_SYS_VDSO_H
 #define HYDROGEN_SYS_VDSO_H
 
+#include "compiler.h"
 #include "util/time.h"
 #include <stdint.h>
 
@@ -12,7 +13,7 @@ typedef struct {
     timeconv_t ns2tsc_conv;
 } vdso_info_t;
 
-extern vdso_info_t vdso_info;
+HIDDEN extern vdso_info_t vdso_info;
 
 #define boot_timestamp (vdso_info.boot_timestamp)
 #define boot_tsc (vdso_info.boot_tsc)
@@ -22,6 +23,6 @@ extern vdso_info_t vdso_info;
 
 void init_vdso(void);
 
-int map_vdso(uintptr_t *entry);
+int map_vdso(uintptr_t *addr);
 
 #endif // HYDROGEN_SYS_VDSO_H

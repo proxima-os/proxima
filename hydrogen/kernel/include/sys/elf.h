@@ -1,7 +1,6 @@
 #ifndef HYDROGEN_SYS_ELF_H
 #define HYDROGEN_SYS_ELF_H
 
-#include "mem/vmm.h"
 #include <stdint.h>
 
 typedef struct {
@@ -48,15 +47,5 @@ typedef struct {
 #define PF_X 1
 #define PF_W 2
 #define PF_R 4
-
-typedef struct {
-    intptr_t slide; // offset to add to virtual addresses to get the relocated address
-    uintptr_t minv; // lowest real virtual address
-    uintptr_t maxv; // highest real virtual address
-} load_addr_info_t;
-
-// currently assumes `image` is a kernel symbol
-// `slide` is the offset to add to virtual addresses to get the relocated address
-int load_elf_image(const elf_header_t *image, vm_object_t *object, uintptr_t extra, load_addr_info_t *out);
 
 #endif // HYDROGEN_SYS_ELF_H

@@ -1,5 +1,5 @@
-add_executable(vdso main.c)
-target_compile_options(vdso PRIVATE -ffreestanding -fPIE -fno-stack-check -fno-stack-protector)
+add_library(vdso SHARED main.c)
+target_compile_options(vdso PRIVATE -ffreestanding -fno-stack-check -fno-stack-protector)
 target_link_libraries(vdso PRIVATE hydrogen-api hydrogen-priv)
-target_link_options(vdso PRIVATE -nostdlib -static-pie)
+target_link_options(vdso PRIVATE -nostdlib)
 target_link_script(vdso vdso.lds)

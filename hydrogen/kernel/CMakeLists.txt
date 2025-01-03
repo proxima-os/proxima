@@ -1,17 +1,9 @@
 add_library(hydrogen-priv INTERFACE)
 target_include_directories(hydrogen-priv INTERFACE include ${UACPI_INCLUDES})
 
-set(sflag "-g")
-
-if (CMAKE_OBJCOPY MATCHES "^.*llvm-objcopy$")
-    set(sflag ${sflag} --strip-sections)
-else ()
-    set(sflag ${sflag} --strip-section-headers)
-endif ()
-
-set(tmp "${CMAKE_CURRENT_BINARY_DIR}/stripped-vdso")
+set(tmp "${CMAKE_CURRENT_BINARY_DIR}/stripped-vdso.so")
 add_custom_command(OUTPUT "${tmp}"
-    COMMAND "${CMAKE_OBJCOPY}" "$<TARGET_FILE:vdso>" "${tmp}" ${sflag}
+    COMMAND "${CMAKE_STRIP}" "$<TARGET_FILE:vdso>" -o "${tmp}"
     DEPENDS vdso
     VERBATIM)
 
@@ -49,7 +41,6 @@ add_executable(hydrogen
     src/sched/sched.c
     src/sched/sched.S
     src/sched/sema.c
-    src/sys/elf.c
     src/sys/syscall.c
     src/sys/syscall.S
     src/sys/vdso.c

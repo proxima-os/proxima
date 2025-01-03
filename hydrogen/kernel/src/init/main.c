@@ -16,6 +16,7 @@
 #include "sched/proc.h"
 #include "sched/sched.h"
 #include "string.h"
+#include "sys/elf.h"
 #include "sys/vdso.h"
 #include "util/panic.h"
 #include "util/print.h"
@@ -39,13 +40,13 @@ static void init_process_func(UNUSED void *ctx) {
     int error = map_vdso(&addr);
     if (error) panic("failed to map vdso (%d)", error);
 
-    printk("vdso entry point: 0x%X\n", addr);
+    printk("mapped vdso at 0x%X\n", addr);
 
     uintptr_t stack_base = 0;
     error = vmm_add(&stack_base, PAGE_SIZE, VMM_READ | VMM_WRITE, NULL, 0);
     if (error) panic("failed to allocate user stack (%d)", error);
 
-    enter_user_mode(addr, stack_base + PAGE_SIZE - 8);
+    enter_user_mode(addr + ((const elf_header_t *)addr)->entry, stack_base + PAGE_SIZE - 8);
 }
 
 static void init_kernel(UNUSED void *ctx) {

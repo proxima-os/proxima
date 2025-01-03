@@ -4,7 +4,6 @@
 #include "mem/pmm.h"
 #include "mem/vmm.h"
 #include "string.h"
-#include "sys/elf.h"
 #include "util/panic.h"
 #include <stdint.h>
 
@@ -20,8 +19,7 @@ static bool vdso_allow_flags(UNUSED vm_object_t *self, int flags) {
 }
 
 static uint64_t vdso_get_base_pte(UNUSED vm_object_t *self, vm_region_t *region, size_t offset) {
-    const void *base = &__vdso_start + offset;
-    if (base == &__vdso_end) base = &vdso_info;
+    const void *base = offset ? &__vdso_start + (offset - PAGE_SIZE) : &vdso_info;
 
     if (region->flags & VMM_PRIVATE) {
         page_t *page = alloc_page();
@@ -48,20 +46,11 @@ void init_vdso(void) {
     ASSERT(vdso_object.size % PAGE_SIZE == 0);
 }
 
-int map_vdso(uintptr_t *entry) {
-    const elf_header_t *header = &__vdso_start;
-
-    load_addr_info_t info;
-    int error = load_elf_image(header, &vdso_object, PAGE_SIZE, &info);
+int map_vdso(uintptr_t *addr_out) {
+    uintptr_t addr = 0;
+    int error = vmm_add(&addr, vdso_object.size, VMM_READ | VMM_EXEC, &vdso_object, 0);
     if (error) return error;
 
-    uintptr_t addr = info.maxv;
-    error = vmm_add(&addr, PAGE_SIZE, VMM_READ | VMM_EXACT, &vdso_object, &__vdso_end - &__vdso_start);
-    if (error) {
-        vmm_del(info.minv, info.maxv - info.minv + PAGE_SIZE);
-        return error;
-    }
-
-    *entry = header->entry + info.slide;
+    *addr_out = addr + PAGE_SIZE;
     return 0;
 }
