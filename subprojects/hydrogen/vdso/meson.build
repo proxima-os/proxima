@@ -1,4 +1,4 @@
-linker_script = files('vdso.lds')[0]
+linker_script = meson.current_source_dir() / 'vdso.lds'
 
 vdso = shared_library(
     'hydrogen-vdso',
@@ -6,7 +6,7 @@ vdso = shared_library(
     c_args: ['-ffreestanding', '-fno-stack-check', '-fno-stack-protector'],
     implicit_include_directories: false,
     include_directories: [api_inc, priv_inc],
-    link_args: ['-nostdlib', '-T' + linker_script.full_path()],
+    link_args: ['-nostdlib', '-T' + linker_script],
     link_depends: linker_script,
     sources: lib_sources,
 )

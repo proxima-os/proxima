@@ -1,4 +1,4 @@
-linker_script = files('kernel.lds')[0]
+linker_script = meson.current_source_dir() / 'kernel.lds'
 
 stripped_vdso = custom_target(
     'stripped-vdso',
@@ -87,7 +87,7 @@ executable(
     install_dir: '/boot',
     install_mode: 'rw-r--r--',
     install_tag: 'runtime',
-    link_args: ['-nostdlib', '-static', '-T' + linker_script.full_path()],
+    link_args: ['-nostdlib', '-static', '-T' + linker_script],
     link_depends: linker_script,
     objects: vdso_object,
     sources: lib_sources,
