@@ -1,8 +1,8 @@
 [binaries]
 ar = 'llvm-ar'
-c = ['clang', '--target=x86_64-unknown-linux-gnu']
+c = ['clang', '--target=x86_64-unknown-linux-gnu', '-nostdlibinc']
 c_ld = 'lld'
-cpp = ['clang++', '--target=x86_64-unknown-linux-gnu']
+cpp = ['clang++', '--target=x86_64-unknown-linux-gnu', '-nostdlibinc']
 cpp_ld = 'lld'
 objcopy = 'llvm-objcopy'
 strip = 'llvm-strip'

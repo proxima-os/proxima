@@ -10,7 +10,7 @@ objcopy = find_program('objcopy')
 strip = find_program('strip')
 
 api_inc = include_directories('include')
-priv_inc = include_directories('kernel/include', 'kernel/uacpi/include')
+priv_inc = include_directories('kernel/include')
 
 add_project_arguments(
     '-fno-common',
@@ -19,6 +19,8 @@ add_project_arguments(
     '-DUACPI_SIZED_FREES',
     language: 'c',
 )
+
+uacpi = subproject('uacpi')
 
 subdir('lib')
 subdir('vdso')
