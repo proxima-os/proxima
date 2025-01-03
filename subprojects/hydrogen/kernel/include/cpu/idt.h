@@ -40,7 +40,7 @@ void idt_install(uint8_t vector, idt_handler_t handler);
 
 void idt_uninstall(uint8_t vector, idt_handler_t handler);
 
-bool paranoid_enter(void);
+bool paranoid_enter(idt_frame_t *frame);
 
 void paranoid_exit(bool swapped);
 

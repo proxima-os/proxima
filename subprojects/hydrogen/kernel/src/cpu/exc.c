@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 void handle_fatal_exception(idt_frame_t *frame) {
-    if (frame->vector == 2 || frame->vector == 8 || frame->vector == 18) paranoid_enter();
+    if (frame->vector == 2 || frame->vector == 8 || frame->vector == 18) paranoid_enter(frame);
 
     panic("unhandled exception %U (error code 0x%X) at 0x%X\n"
           "rax=0x%16X rbx=0x%16X rcx=0x%16X rdx=0x%16X\n"

@@ -50,8 +50,10 @@ void idt_uninstall(uint8_t vector, UNUSED idt_handler_t handler) {
     ASSERT(old == handler);
 }
 
-bool paranoid_enter(void) {
-    bool should_swap = (rdmsr(MSR_GS_BASE) & (1ul << 63)) == 0;
+bool paranoid_enter(idt_frame_t *frame) {
+    uint64_t wanted_base = *(uint64_t *)&frame[1];
+    uint64_t current_base = rdmsr(MSR_GS_BASE);
+    bool should_swap = wanted_base != current_base;
     if (should_swap) asm("swapgs");
     return should_swap;
 }
