@@ -1,6 +1,8 @@
+#include "compiler.h"
 #include <stddef.h>
+#include <stdint.h>
 
-int memcmp(const void *lhs, const void *rhs, size_t count) {
+HIDDEN int memcmp(const void *lhs, const void *rhs, size_t count) {
     const unsigned char *byte_lhs = lhs;
     const unsigned char *byte_rhs = rhs;
     size_t i;
@@ -12,7 +14,7 @@ int memcmp(const void *lhs, const void *rhs, size_t count) {
     return 0;
 }
 
-void *memcpy(void *dest, const void *src, size_t count) {
+HIDDEN void *memcpy(void *dest, const void *src, size_t count) {
     unsigned char *cd = dest;
     const unsigned char *cs = src;
 
@@ -21,7 +23,7 @@ void *memcpy(void *dest, const void *src, size_t count) {
     return dest;
 }
 
-void *memmove(void *dest, const void *src, size_t count) {
+HIDDEN void *memmove(void *dest, const void *src, size_t count) {
     unsigned char *cd = dest;
     const unsigned char *cs = src;
 
@@ -37,7 +39,7 @@ void *memmove(void *dest, const void *src, size_t count) {
     return dest;
 }
 
-void *memset(void *dest, int ch, size_t count) {
+HIDDEN void *memset(void *dest, int ch, size_t count) {
     unsigned char fill = ch;
     unsigned char *cdest = dest;
 
@@ -46,7 +48,7 @@ void *memset(void *dest, int ch, size_t count) {
     return dest;
 }
 
-int strcmp(const char *s1, const char *s2) {
+HIDDEN int strcmp(const char *s1, const char *s2) {
     size_t i = 0;
 
     for (;;) {

@@ -71,7 +71,7 @@ static void printu(uint64_t value, size_t min) {
     sys_print(&buffer[index], sizeof(buffer) - index);
 }
 
-__attribute__((used)) _Noreturn void _start(void) {
+HIDDEN __attribute__((used)) _Noreturn void _start(void) {
     uint64_t elapsed = get_ns_since_boot();
 
     sys_print("According to userspace, it has been ", 36);
