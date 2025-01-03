@@ -23,8 +23,8 @@ jobs:
     - name: Configure Meson
       run: |
         meson setup ${{github.workspace}}/builddir ${{github.workspace}} \
-          --cross-file ${{github.workspace}}/scripts/cross/${{matrix.arch}}.txt -Bbuildtype=release -Bb_lto=true \
-          -Bb_lto_mode=thin -Bb_ndebug=true
+          --cross-file ${{github.workspace}}/scripts/cross/${{matrix.arch}}.txt -Dbuildtype=release -Db_lto=true \
+          -Db_lto_mode=thin -Db_ndebug=true
 
     - name: Build
       run: meson compile -C ${{github.workspace}}/builddir
