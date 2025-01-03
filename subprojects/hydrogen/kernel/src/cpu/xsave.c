@@ -67,8 +67,8 @@ void init_xsave_ap(void) {
 static void do_xsave(void *ptr) {
     switch (ctx_style) {
     case CTX_FXSAVE: asm("fxsaveq (%0)" ::"r"(ptr)); break;
-    case CTX_XSAVE: asm("xsave (%0)" ::"r"(ptr), "d"(-1), "a"(-1)); break;
-    case CTX_XSAVEOPT: asm("xsaveopt (%0)" ::"r"(ptr), "d"(-1), "a"(-1)); break;
+    case CTX_XSAVE: asm("xsaveq (%0)" ::"r"(ptr), "d"(-1), "a"(-1)); break;
+    case CTX_XSAVEOPT: asm("xsaveoptq (%0)" ::"r"(ptr), "d"(-1), "a"(-1)); break;
     }
 }
 
@@ -92,18 +92,14 @@ void free_xsave(void *ptr) {
 }
 
 void xsave(void) {
-    switch (ctx_style) {
-    case CTX_FXSAVE: asm("fxsaveq (%0)" ::"r"(current_task->xsave_area)); break;
-    case CTX_XSAVE: asm("xsave (%0)" ::"r"(current_task->xsave_area), "d"(-1), "a"(-1)); break;
-    case CTX_XSAVEOPT: asm("xsaveopt (%0)" ::"r"(current_task->xsave_area), "d"(-1), "a"(-1)); break;
-    }
+    do_xsave(current_task->xsave_area);
 }
 
 void xrestore(void) {
     switch (ctx_style) {
     case CTX_FXSAVE: asm("fxrstorq (%0)" ::"r"(current_task->xsave_area)); break;
     case CTX_XSAVE:
-    case CTX_XSAVEOPT: asm("xrstor (%0)" ::"r"(current_task->xsave_area), "d"(-1), "a"(-1)); break;
+    case CTX_XSAVEOPT: asm("xrstorq (%0)" ::"r"(current_task->xsave_area), "d"(-1), "a"(-1)); break;
     }
 }
 
