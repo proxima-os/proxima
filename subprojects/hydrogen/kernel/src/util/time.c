@@ -151,10 +151,6 @@ static void handle_timer_irq(UNUSED idt_frame_t *frame) {
         if (event == NULL) break;
         if (read_time() < event->timestamp) break;
 
-        // `event` is the earliest in the tree, so `event->left` is `NULL`
-        // if there are other events at the same point in time, they will be in `event->right`
-        // otherwise, the next event is `event->parent`
-
         current_cpu.events = event->next;
         if (event->next) event->next->prev = NULL;
 
