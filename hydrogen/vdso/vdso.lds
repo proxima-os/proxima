@@ -6,26 +6,6 @@ PHDRS {
 }
 
 SECTIONS {
-    /*. = 0;
-    .text   : { *(.text .text.*) } :text
-
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .dynsym : { *(.dynsym) } :rodata
-    .dynstr : { *(.dynstr) } :rodata
-    .hash : { *(.hash) } :rodata
-    .gnu.hash : { *(.gnu.hash) } :rodata
-    .rela : { *(.rela .rela.*) } :rodata
-    .rodata : { *(.rodata .rodata.*) } :rodata
-
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .data    : { *(.data .data.*) } :data
-    .dynamic : { *(.dynamic) } :data :dynamic
-    .bss : {
-        *(.bss .bss.*)
-        . = ALIGN(CONSTANT(MAXPAGESIZE));
-    } :data
-
-    vdso_info = .;*/
     vdso_info = . - CONSTANT(MAXPAGESIZE);
 
     . = SIZEOF_HEADERS;
