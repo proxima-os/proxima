@@ -43,6 +43,8 @@ typedef struct {
     task_ctx_t ctx;
     void *xsave_area;
     void *kernel_stack;
+    uintptr_t fs_base;
+    uintptr_t gs_base;
 
     timer_event_t timeout_event;
     bool timed_out;

@@ -1,5 +1,7 @@
 #include "sched/sched.h"
+#include "asm/fsgsbase.h"
 #include "asm/irq.h"
+#include "asm/msr.h"
 #include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/idt.h"
@@ -69,6 +71,12 @@ static void update_after_removal(sched_t *sched, int queue) {
 // Ran right before switch_task
 static void prepare_for_switch(UNUSED task_t *new_task) {
     xsave();
+
+    if (fsgsbase_supported) {
+        current_task->fs_base = rdfsbase();
+        current_task->gs_base = rdmsr(MSR_KERNEL_GS_BASE);
+    }
+    // if fsgsbase isn't supported, current_task->{fs,gs}_base are up-to-date at all times
 }
 
 static void free_resources(task_t *task) {
@@ -94,6 +102,9 @@ static void finish_switch(task_t *old_task) {
     xrestore();
     current_cpu.kernel_stack = (uintptr_t)current_task->kernel_stack;
     current_cpu.tss.rsp[0] = (uintptr_t)current_task->kernel_stack;
+
+    wrmsr(MSR_FS_BASE, current_task->fs_base);
+    wrmsr(MSR_KERNEL_GS_BASE, current_task->gs_base);
 
     vmm_t *vmm = current_proc->vmm;
     if (vmm != old_task->process->vmm) vmm_switch(vmm);

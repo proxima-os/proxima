@@ -9,7 +9,9 @@
 #define MSR_STAR 0xc0000081
 #define MSR_LSTAR 0xc0000082
 #define MSR_FMASK 0xc0000084
+#define MSR_FS_BASE 0xc0000100
 #define MSR_GS_BASE 0xc0000101
+#define MSR_KERNEL_GS_BASE 0xc0000102
 
 static inline uint64_t rdmsr(uint32_t msr) {
     uint32_t low, high;

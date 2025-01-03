@@ -1,6 +1,8 @@
 #include "sys/syscall.h"
+#include "asm/fsgsbase.h"
 #include "asm/msr.h"
 #include "compiler.h"
+#include "cpu/cpu.h"
 #include "cpu/gdt.h"
 #include "cpu/idt.h"
 #include "hydrogen/error.h"
@@ -29,7 +31,12 @@ static syscall_result_t do_syscall(uintptr_t num, size_t a0, size_t a1, size_t a
     case SYS_MMAP: return sys_mmap(a0, a1, a2);
     case SYS_MPROTECT: return sys_mprotect(a0, a1, a2);
     case SYS_MUNMAP: return sys_munmap(a0, a1);
-    case SYS_PRINT: return sys_print((const void *)a0, a1);
+    case SYS_GET_FS_BASE: return SYSCALL_NUM(fsgsbase_supported ? rdfsbase() : current_task->fs_base);
+    case SYS_GET_GS_BASE: return SYSCALL_NUM(fsgsbase_supported ? rdmsr(MSR_KERNEL_GS_BASE) : current_task->gs_base);
+    case SYS_SET_FS_BASE:
+        if (fsgsbase_supported) wrfsbase(a0);
+        else case SYS_PRINT:
+            return sys_print((const void *)a0, a1);
     default: return SYSCALL_ERR(ERR_NOT_IMPLEMENTED); break;
     }
 }
@@ -49,6 +56,11 @@ int verify_user_ptr(const void *ptr, size_t len) {
     return 0;
 }
 
+static int verify_addr(uintptr_t addr) {
+    if (unlikely(addr >= MAX_USER_VIRT_ADDR && addr < MIN_KERNEL_VIRT_ADDR)) return ERR_INVALID_ARGUMENT;
+    return 0;
+}
+
 _Noreturn void sys_exit(void) {
     sched_exit();
 }
@@ -65,6 +77,34 @@ syscall_result_t sys_mprotect(uintptr_t addr, size_t size, int flags) {
 
 syscall_result_t sys_munmap(uintptr_t addr, size_t size) {
     return SYSCALL_ERR(vmm_del(addr, size));
+}
+
+syscall_result_t sys_get_fs_base(void) {
+    return SYSCALL_NUM(fsgsbase_supported ? rdfsbase() : current_task->fs_base);
+}
+
+syscall_result_t sys_get_gs_base(void) {
+    return SYSCALL_NUM(fsgsbase_supported ? rdmsr(MSR_KERNEL_GS_BASE) : current_task->gs_base);
+}
+
+syscall_result_t sys_set_fs_base(uintptr_t base) {
+    int error = verify_addr(base);
+    if (unlikely(error)) return SYSCALL_ERR(error);
+
+    wrmsr(MSR_FS_BASE, base);
+    current_task->fs_base = base;
+
+    return SYSCALL_ERR(0);
+}
+
+syscall_result_t sys_set_gs_base(uintptr_t base) {
+    int error = verify_addr(base);
+    if (unlikely(error)) return SYSCALL_ERR(error);
+
+    wrmsr(MSR_KERNEL_GS_BASE, base);
+    current_task->gs_base = base;
+
+    return SYSCALL_ERR(0);
 }
 
 syscall_result_t sys_print(const void *buf, size_t len) {

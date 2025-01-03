@@ -20,6 +20,14 @@ syscall_result_t sys_mprotect(uintptr_t addr, size_t size, int flags);
 
 syscall_result_t sys_munmap(uintptr_t addr, size_t size);
 
+syscall_result_t sys_get_fs_base(void);
+
+syscall_result_t sys_get_gs_base(void);
+
+syscall_result_t sys_set_fs_base(uintptr_t base);
+
+syscall_result_t sys_set_gs_base(uintptr_t base);
+
 syscall_result_t sys_print(const void *buf, size_t len);
 
 #endif // HYDROGEN_SYS_SYSCALL_H
