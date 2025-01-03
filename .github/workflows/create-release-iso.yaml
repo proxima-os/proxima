@@ -4,10 +4,6 @@ on:
   push:
     branches: [ "main" ]
 
-env:
-  BUILD_TYPE: Release
-  LTO: ON
-
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -22,19 +18,22 @@ jobs:
         submodules: recursive
 
     - name: Install dependencies
-      run: sudo apt-get install -y xorriso ninja-build
+      run: sudo apt-get install -y xorriso ninja-build meson
 
-    - name: Configure CMake
-      run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{env.LTO}} --toolchain ${{github.workspace}}/cmake/cross/${{matrix.arch}}.cmake -GNinja
+    - name: Configure Meson
+      run: |
+        meson setup ${{github.workspace}}/builddir ${{github.workspace}} \
+          --cross-file ${{github.workspace}}/scripts/cross/${{matrix.arch}}.txt -Bbuildtype=release -Bb_lto=true \
+          -Bb_lto_mode=thin -Bb_ndebug=true
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: meson compile -C ${{github.workspace}}/builddir
 
     - name: Create ISO
       run: ${{github.workspace}}/scripts/mkiso.sh proxima.iso
-      working-directory: ${{github.workspace}}/build
+      working-directory: ${{github.workspace}}/builddir
 
     - uses: actions/upload-artifact@v4
       with:
         name: iso-image
-        path: ${{github.workspace}}/build/proxima.iso
+        path: ${{github.workspace}}/builddir/proxima.iso

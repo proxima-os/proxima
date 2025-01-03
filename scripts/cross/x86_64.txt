@@ -1,0 +1,18 @@
+[binaries]
+ar = 'llvm-ar'
+c = ['clang', '--target=x86_64-unknown-linux-gnu']
+c_ld = 'lld'
+cpp = ['clang++', '--target=x86_64-unknown-linux-gnu']
+cpp_ld = 'lld'
+objcopy = 'llvm-objcopy'
+strip = 'llvm-strip'
+
+[host_machine]
+system = 'proxima'
+kernel = 'hydrogen'
+cpu_family = 'x86'
+cpu = 'x86_64'
+endian = 'little'
+
+[built-in options]
+libdir = 'lib'

@@ -6,9 +6,7 @@ if test "$#" -ne 1; then
     exit 2
 fi
 
-mkdir -p build
+meson setup build --reconfigure --cross-file="scripts/cross/$1.txt" -Dbuildtype=release -Db_lto=true -Db_lto_mode=thin \
+    -Db_ndebug=true
 cd build
-cmake .. --toolchain "../cmake/cross/$1.cmake" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=1 \
-    -G Ninja
-ninja
 ../scripts/mkiso.sh proxima.iso

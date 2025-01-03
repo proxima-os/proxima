@@ -1,5 +1,0 @@
-function(target_link_script target script)
-    cmake_path(ABSOLUTE_PATH script)
-    set_property(TARGET "${target}" APPEND PROPERTY LINK_DEPENDS "${script}")
-    target_link_options("${target}" PRIVATE "-T${script}")
-endfunction()

@@ -26,7 +26,7 @@ cleanup () {
 }
 trap cleanup EXIT
 
-cmake --install . --prefix "$dir" --component runtime --strip
+meson install --destdir "$dir" --tags runtime --strip
 
 mkdir -p "$dir/EFI/BOOT"
 cp limine/*.EFI "$dir/EFI/BOOT"

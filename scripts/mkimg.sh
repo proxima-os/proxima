@@ -24,5 +24,5 @@ trap cleanup EXIT
 mnt=$(mktemp -d)
 fuse2fs "$1" "$mnt" -o fakeroot,rw
 
-cmake --install . --prefix "$mnt" --component runtime --strip
+meson install --destdir "$mnt" --tags runtime --strip
 chown -R 0:0 "$mnt"
