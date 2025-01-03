@@ -18,7 +18,7 @@ jobs:
         submodules: recursive
 
     - name: Install dependencies
-      run: sudo apt-get install -y xorriso ninja-build meson
+      run: sudo apt-get install -y xorriso ninja-build meson llvm-18-tools
 
     - name: Configure Meson
       run: |
