@@ -1,1 +1,1 @@
-lib_sources = files('string.S')
+lib_sources = files('string.c')

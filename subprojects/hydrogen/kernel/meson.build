@@ -50,7 +50,6 @@ executable(
     'src/util/panic.c',
     'src/util/print.c',
     'src/util/spinlock.c',
-    'src/util/string.c',
     'src/util/time.c',
     'src/util/xarray.c',
     'uacpi/source/default_handlers.c',
