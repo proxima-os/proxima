@@ -225,9 +225,9 @@ static bool can_merge(vm_region_t *r1, vm_region_t *r2) {
     return addr_diff == offs_diff;
 }
 
-static int merge_or_insert(vmm_t *vmm, vm_region_t *prev, vm_region_t *next, vm_region_t region) {
-    bool merge_prev = prev != NULL && prev->tail + 1 == region.head && can_merge(prev, &region);
-    bool merge_next = next != NULL && region.tail + 1 == next->head && can_merge(&region, next);
+static void merge_or_insert(vmm_t *vmm, vm_region_t *prev, vm_region_t *next, vm_region_t *region) {
+    bool merge_prev = prev != NULL && prev->tail + 1 == region->head && can_merge(prev, region);
+    bool merge_next = next != NULL && region->tail + 1 == next->head && can_merge(region, next);
 
     if (merge_prev && merge_next) {
         prev->tail = next->tail;
@@ -235,24 +235,23 @@ static int merge_or_insert(vmm_t *vmm, vm_region_t *prev, vm_region_t *next, vm_
         if (next->object) vmo_deref(next->object);
         vmfree(next, sizeof(*next));
     } else if (merge_prev) {
-        prev->tail = region.tail;
+        prev->tail = region->tail;
     } else if (merge_next) {
         tree_rem(vmm, next);
-        next->head = region.head;
+        next->head = region->head;
         tree_add(vmm, next);
     } else {
-        vm_region_t *r = vmalloc(sizeof(*r));
-        if (unlikely(!r)) return ERR_OUT_OF_MEMORY;
-        memcpy(r, &region, sizeof(*r));
-        insert_before(vmm, next, r);
-        if (region.object) vmo_ref(region.object);
+        insert_before(vmm, next, region);
+        if (region->object) vmo_ref(region->object);
+        return;
     }
 
-    return 0;
+    vmfree(region, sizeof(*region));
 }
 
 static int remove_overlapping(vmm_t *vmm, vm_region_t **prev, vm_region_t **next, uintptr_t head, uintptr_t tail) {
-    vm_region_t *cur = *next;
+    vm_region_t *start = *next;
+    vm_region_t *cur = start;
 
     while (cur != NULL && cur->head <= tail) {
         vm_region_t *next = node_to_obj(vm_region_t, node, cur->node.next);
@@ -280,6 +279,10 @@ static int remove_overlapping(vmm_t *vmm, vm_region_t **prev, vm_region_t **next
             next = cur;
         } else {
             // cur->head < head && cur->tail > tail, so split in two
+            // this should only be possible if this is the only region to change. verify that, because otherwise
+            // an allocation failure here could cause a partial unmap
+            ASSERT(cur == start && (next == NULL || next->head > tail));
+
             vm_region_t *tpart = vmalloc(sizeof(*tpart));
             if (unlikely(!tpart)) return ERR_OUT_OF_MEMORY;
             memset(tpart, 0, sizeof(*tpart));
@@ -322,33 +325,39 @@ static int add_exact(vmm_t *vmm, uintptr_t addr, size_t size, int flags, vm_obje
     vm_region_t *prev = find_highest_below(vmm, addr);
     vm_region_t *next = node_to_obj(vm_region_t, node, prev ? prev->node.next : vmm->reg_list.first);
 
-    int error = remove_overlapping(vmm, &prev, &next, addr, tail);
+    size = tail - addr + 1;
 
-    if (error == 0) {
-        size = tail - addr + 1;
+    bool reserve = requires_reservation(flags, object);
+    int error = !reserve || reserve_pages(size >> PAGE_SHIFT) ? 0 : ERR_OUT_OF_MEMORY;
 
-        bool reserve = requires_reservation(flags, object);
-        error = !reserve || reserve_pages(size >> PAGE_SHIFT) ? 0 : ERR_OUT_OF_MEMORY;
+    if (likely(error == 0)) {
+        if (flags & VMM_PFLAG) {
+            error = prepare_map(addr, size);
+        }
 
         if (likely(error == 0)) {
-            if (flags & VMM_PFLAG) {
-                error = prepare_map(addr, size);
-            }
+            vm_region_t *region = vmalloc(sizeof(*region));
 
-            if (likely(error == 0)) {
-                vm_region_t region = {
-                        .head = addr,
-                        .tail = tail,
-                        .flags = flags,
-                        .object = object,
-                        .offset = offset & ~PAGE_MASK,
-                };
-                error = merge_or_insert(vmm, prev, next, region);
-            }
+            if (likely(region)) {
+                error = remove_overlapping(vmm, &prev, &next, addr, tail);
 
-            if (unlikely(error) && reserve) {
-                unreserve_pages(size >> PAGE_SHIFT);
+                if (likely(error == 0)) {
+                    memset(region, 0, sizeof(*region));
+                    region->head = addr;
+                    region->tail = tail;
+                    region->flags = flags;
+                    region->object = object;
+                    region->offset = offset & ~PAGE_MASK;
+
+                    merge_or_insert(vmm, prev, next, region);
+                } else {
+                    vmfree(region, sizeof(*region));
+                }
             }
+        }
+
+        if (unlikely(error) && reserve) {
+            unreserve_pages(size >> PAGE_SHIFT);
         }
     }
 
@@ -457,14 +466,19 @@ int vmm_add(uintptr_t *addr, size_t size, int flags, vm_object_t *object, size_t
         }
     }
 
-    vm_region_t region = {
-            .head = pos.head,
-            .tail = pos.tail,
-            .flags = flags & ~VMM_EXACT,
-            .object = object,
-            .offset = offset & ~PAGE_MASK,
-    };
-    error = merge_or_insert(vmm, pos.prev, pos.next, region);
+    vm_region_t *region = vmalloc(sizeof(*region));
+
+    if (likely(region)) {
+        memset(region, 0, sizeof(*region));
+        region->head = pos.head;
+        region->tail = pos.tail;
+        region->flags = flags & ~VMM_EXACT;
+        region->object = object;
+        region->offset = offset & ~PAGE_MASK;
+        merge_or_insert(vmm, pos.prev, pos.next, region);
+    } else {
+        error = ERR_OUT_OF_MEMORY;
+    }
 
     if (likely(error == 0)) {
         *addr = pos.head;
