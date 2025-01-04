@@ -33,7 +33,6 @@ syscall_entry:
     mov %r11, 0x98(%rsp)
     mov %gs:8, %rdi
     mov %rdi, 0xa0(%rsp)
-    sti
 
 #ifndef NDEBUG
     xor %ebp, %ebp
@@ -42,7 +41,6 @@ syscall_entry:
     call syscall_dispatch
 
     # Load registers
-    cli
     mov 0x00(%rsp), %rax
     mov 0x08(%rsp), %rbx
     mov 0x10(%rsp), %rcx

@@ -8,6 +8,9 @@
 #define SYSCALL_PTR(val) ((syscall_result_t){.value.ptr = (val)})
 #define SYSCALL_ERR(err) ((syscall_result_t){.error = (err)})
 
+extern void *(*memcpy_user)(void *, const void *, size_t);
+extern void *(*memset_user)(void *, int, size_t);
+
 void syscall_init(void);
 
 int verify_user_ptr(const void *ptr, size_t len);

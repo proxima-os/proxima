@@ -1,23 +1,18 @@
 #!/bin/sh
 set -e
+sdir=$(dirname "$0")
 
 if test "$#" -ne 1; then
     echo "usage: $0 OUTPUT" >&2
     exit 2
 fi
 
-# Clone, update, and build Limine
-if test -d limine; then
-    cd limine
-    git pull
-    cd ..
-else
+if ! test -d limine; then
     git clone https://github.com/limine-bootloader/limine.git --depth 1 --branch v8.x-binary
+    cd limine
+    make
+    cd ..
 fi
-
-cd limine
-make
-cd ..
 
 # Create ISO tree
 dir=$(mktemp -d)
@@ -26,7 +21,9 @@ cleanup () {
 }
 trap cleanup EXIT
 
-meson install --destdir "$dir" --tags runtime --strip
+mkdir "$dir/boot"
+"$sdir/geninitrd.sh" "$dir/boot/proxima.tar"
+install -Dsm644 subprojects/hydrogen/kernel/hydrogen "$dir/boot/hydrogen"
 
 mkdir -p "$dir/EFI/BOOT"
 cp limine/*.EFI "$dir/EFI/BOOT"
@@ -37,6 +34,7 @@ timeout: 0
 /Proxima
     protocol: limine
     kernel_path: boot():/boot/hydrogen
+    module_path: boot():/boot/proxima.tar
 EOF
 
 # Create ISO image

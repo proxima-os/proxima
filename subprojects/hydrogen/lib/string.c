@@ -48,6 +48,12 @@ HIDDEN void *memset(void *dest, int ch, size_t count) {
     return dest;
 }
 
+HIDDEN size_t strnlen(const char *s, size_t max) {
+    size_t cur = 0;
+    while (cur < max && s[cur] != 0) cur++;
+    return cur;
+}
+
 HIDDEN int strcmp(const char *s1, const char *s2) {
     size_t i = 0;
 

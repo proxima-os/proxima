@@ -11,6 +11,8 @@ void *memmove(void *dest, const void *src, size_t count);
 
 void *memset(void *dest, int ch, size_t count);
 
+size_t strnlen(const char *s, size_t max);
+
 #define strcmp __builtin_strcmp
 
 #endif // HYDROGEN_STRING_H

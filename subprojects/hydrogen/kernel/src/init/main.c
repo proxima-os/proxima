@@ -10,6 +10,9 @@
 #include "drv/hpet.h"
 #include "drv/pci.h"
 #include "drv/pic.h"
+#include "fs/ramfs.h"
+#include "fs/vfs.h"
+#include "init/initrd.h"
 #include "limine.h"
 #include "mem/pmm.h"
 #include "mem/vmm.h"
@@ -38,25 +41,35 @@ static void init_process_func(UNUSED void *ctx) {
            stats.avail << (PAGE_SHIFT - 10),
            stats.free << (PAGE_SHIFT - 10));
 
-    uintptr_t addr = 0;
-    int error = map_vdso(&addr);
+    int error = map_vdso(&current_proc->vdso);
     if (error) panic("failed to map vdso (%d)", error);
 
-    printk("mapped vdso at 0x%X\n", addr);
+    printk("mapped vdso at 0x%X\n", current_proc->vdso);
 
     uintptr_t stack_base = 0;
     error = vmm_add(&stack_base, PAGE_SIZE, VMM_READ | VMM_WRITE, NULL, 0);
     if (error) panic("failed to allocate user stack (%d)", error);
 
-    enter_user_mode(addr + __vdso_start.entry, stack_base + PAGE_SIZE - 8);
+    enter_user_mode(current_proc->vdso + __vdso_start.entry, stack_base + PAGE_SIZE - 8);
 }
 
 static void init_kernel(UNUSED void *ctx) {
+    vfs_t *rootfs;
+    ident_t *ident = get_identity();
+    int error = ramfs_create(&rootfs, 0755, ident);
+    ident_deref(ident);
+    if (unlikely(error)) panic("failed to create root filesystem (%d)", error);
+    set_root(rootfs->root);
+    vnode_deref(rootfs->root);
+
+    extract_initrds(NULL, "/", 1);
+    reclaim_loader_memory();
+
     init_pci_access();
     init_acpi_fully();
 
     vmm_t *vmm;
-    int error = vmm_create(&vmm);
+    error = vmm_create(&vmm);
     if (error) panic("failed to create init vmm (%d)", error);
 
     proc_t *proc;
@@ -90,7 +103,6 @@ _Noreturn void kernel_main(void) {
     init_hpet();
     init_time();
     init_smp();
-    reclaim_loader_memory();
     init_proc();
     init_sched();
 

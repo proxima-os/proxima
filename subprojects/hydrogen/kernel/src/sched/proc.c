@@ -1,5 +1,6 @@
 #include "sched/proc.h"
 #include "asm/irq.h"
+#include "fs/vfs.h"
 #include "hydrogen/error.h"
 #include "mem/vheap.h"
 #include "mem/vmm.h"
@@ -21,7 +22,7 @@ void init_proc(void) {
     if (id < 0) panic("failed to allocate id for kernel process (%d)", id);
     ASSERT(id == 0);
 
-    identity_t *ident = vmalloc(sizeof(*ident));
+    ident_t *ident = vmalloc(sizeof(*ident));
     if (!ident) panic("failed to allocate identity for kernel process");
     memset(ident, 0, sizeof(*ident));
     ident->references = 1;
@@ -102,6 +103,8 @@ int create_process(proc_t **out, task_func_t func, void *ctx, vmm_t *vmm) {
     proc->parent = current_proc;
     proc->id = id;
     proc->identity = get_identity();
+    proc->root = get_root();
+    proc->umask = __atomic_load_n(&proc->umask, __ATOMIC_ACQUIRE);
 
     if (vmm) proc->vmm = vmm;
     else proc->vmm = current_proc->vmm;
@@ -133,40 +136,60 @@ bool proc_wait(proc_t *proc, uint64_t timeout) {
     return success;
 }
 
-identity_t *get_identity(void) {
-    spin_lock_noirq(&current_proc->lock);
-    identity_t *ident = current_proc->identity;
+ident_t *get_identity(void) {
+    irq_state_t state = spin_lock(&current_proc->lock);
+    ident_t *ident = current_proc->identity;
     ident->references += 1;
-    spin_unlock_noirq(&current_proc->lock);
+    spin_unlock(&current_proc->lock, state);
     return ident;
 }
 
-void ident_ref(identity_t *ident) {
+void ident_ref(ident_t *ident) {
     __atomic_fetch_add(&ident->references, 1, __ATOMIC_ACQUIRE);
 }
 
-void ident_deref(identity_t *ident) {
+void ident_deref(ident_t *ident) {
     if (__atomic_fetch_sub(&ident->references, 1, __ATOMIC_ACQ_REL) == 1) {
         vmfree(ident, sizeof(*ident));
     }
 }
 
-void set_identity(identity_t *identity) {
+void set_identity(ident_t *identity) {
     ident_ref(identity);
 
-    spin_lock_noirq(&current_proc->lock);
-    identity_t *old = current_proc->identity;
+    irq_state_t state = spin_lock(&current_proc->lock);
+    ident_t *old = current_proc->identity;
     current_proc->identity = identity;
-    spin_unlock_noirq(&current_proc->lock);
+    spin_unlock(&current_proc->lock, state);
 
     ident_deref(old);
 }
 
-identity_t *clone_identity(void) {
-    identity_t *ident = vmalloc(sizeof(*ident));
+ident_t *clone_identity(void) {
+    ident_t *ident = vmalloc(sizeof(*ident));
     if (!ident) return NULL;
-    identity_t *old = get_identity();
+    ident_t *old = get_identity();
     memcpy(ident, old, sizeof(*ident));
     ident_deref(old);
     return ident;
+}
+
+vnode_t *get_root(void) {
+    irq_state_t state = spin_lock(&current_proc->lock);
+    vnode_t *root = current_proc->root;
+    vnode_ref(root);
+    spin_unlock(&current_proc->lock, state);
+
+    return root;
+}
+
+void set_root(vnode_t *vnode) {
+    vnode_ref(vnode);
+
+    irq_state_t state = spin_lock(&current_proc->lock);
+    vnode_t *old = current_proc->root;
+    current_proc->root = vnode;
+    spin_unlock(&current_proc->lock, state);
+
+    if (old) vnode_deref(old);
 }

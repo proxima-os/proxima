@@ -3,6 +3,7 @@
 #include "mem/heap.h"
 #include "mem/pmm.h"
 #include "mem/vmm.h"
+#include "sched/proc.h"
 #include "string.h"
 #include "util/panic.h"
 #include <stdint.h>
@@ -37,13 +38,19 @@ static vm_object_ops_t vdso_ops = {
         .get_base_pte = vdso_get_base_pte,
 };
 static vm_object_t vdso_object = {.ops = &vdso_ops, .references = 1};
+static size_t vdso_image_size;
 
 void init_vdso(void) {
     ASSERT((uintptr_t)&__vdso_start % 0x1000 == 0);
     ASSERT((uintptr_t)&vdso_info % 0x1000 == 0);
 
-    vdso_object.size = &__vdso_end - &__vdso_start + PAGE_SIZE;
+    vdso_image_size = &__vdso_end - &__vdso_start;
+    vdso_object.size = vdso_image_size + PAGE_SIZE;
     ASSERT(vdso_object.size % PAGE_SIZE == 0);
+}
+
+bool is_address_in_vdso(uintptr_t address) {
+    return address >= current_proc->vdso && address < (current_proc->vdso + vdso_image_size);
 }
 
 int map_vdso(uintptr_t *addr_out) {

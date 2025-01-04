@@ -11,6 +11,8 @@ typedef struct {
 // Clears the array, freeing all data associated with it
 void xarray_clear(xarray_t *arr, void (*entry_handler)(void *, void *), void *ctx);
 
+void xarray_trunc(xarray_t *arr, size_t max_idx, void (*entry_handler)(void *, void *), void *ctx);
+
 // Returns the value at index, or NULL if the index is invalid
 void *xarray_get(xarray_t *arr, size_t index);
 

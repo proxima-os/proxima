@@ -23,6 +23,8 @@ HIDDEN extern vdso_info_t vdso_info;
 
 void init_vdso(void);
 
+bool is_address_in_vdso(uintptr_t address);
+
 int map_vdso(uintptr_t *addr);
 
 #endif // HYDROGEN_SYS_VDSO_H
