@@ -6,9 +6,11 @@
 _Noreturn void panic(const char *format, ...);
 
 #ifndef NDEBUG
+#include "compiler.h"
+
 #define ASSERT(x)                                                                                                      \
     do {                                                                                                               \
-        if (!(x)) panic("assertion `%s` failed in %s at %s:%d", #x, __func__, __FILE__, __LINE__);                     \
+        if (unlikely(!(x))) panic("assertion `%s` failed in %s at %s:%d", #x, __func__, __FILE__, __LINE__);           \
     } while (0)
 #else
 #define ASSERT(x)                                                                                                      \
