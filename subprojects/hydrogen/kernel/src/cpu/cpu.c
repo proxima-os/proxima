@@ -82,7 +82,7 @@ void init_cpu(cpu_init_data_t *data) {
     if (tsc_supported) cr4 &= ~CR4_TSD;
     if (fsgsbase_supported) cr4 |= CR4_FSGSBASE;
     if (smep_supported) cr4 |= CR4_SMEP;
-    if (smap_supported) cr4 &= ~CR4_SMAP;
+    if (smap_supported) cr4 |= CR4_SMAP;
     if (umip_supported) cr4 |= CR4_UMIP;
 
     write_cr4(cr4);

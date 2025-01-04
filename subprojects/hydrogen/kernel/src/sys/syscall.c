@@ -1,6 +1,7 @@
 #include "sys/syscall.h"
 #include "asm/fsgsbase.h"
 #include "asm/msr.h"
+#include "asm/smap.h"
 #include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/gdt.h"
@@ -111,6 +112,9 @@ syscall_result_t sys_print(const void *buf, size_t len) {
     int error = verify_user_ptr(buf, len);
     if (error) return SYSCALL_ERR(error);
 
+    if (smap_supported) enable_user_access();
     printk("%S", buf, len);
+    if (smap_supported) disable_user_access();
+
     return SYSCALL_ERR(0);
 }

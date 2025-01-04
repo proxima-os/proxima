@@ -29,6 +29,8 @@ __attribute__((used, section(".requests2"))) LIMINE_REQUESTS_END_MARKER;
 
 LIMINE_REQ LIMINE_BASE_REVISION(3);
 
+extern const elf_header_t __vdso_start;
+
 static void init_process_func(UNUSED void *ctx) {
     pmm_stats_t stats = get_pmm_stats();
     printk("mem: %uK total, %uK available, %uK free\n",
@@ -46,7 +48,7 @@ static void init_process_func(UNUSED void *ctx) {
     error = vmm_add(&stack_base, PAGE_SIZE, VMM_READ | VMM_WRITE, NULL, 0);
     if (error) panic("failed to allocate user stack (%d)", error);
 
-    enter_user_mode(addr + ((const elf_header_t *)addr)->entry, stack_base + PAGE_SIZE - 8);
+    enter_user_mode(addr + __vdso_start.entry, stack_base + PAGE_SIZE - 8);
 }
 
 static void init_kernel(UNUSED void *ctx) {

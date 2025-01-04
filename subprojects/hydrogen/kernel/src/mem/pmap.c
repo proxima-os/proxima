@@ -153,65 +153,67 @@ static void handle_page_fault(idt_frame_t *frame) {
     vmm_t *vmm = current_proc->vmm;
 
     if (likely(l4i < 256)) {
-        mutex_lock(&vmm->lock);
+        if (likely(frame->cs & 3) || likely(!smap_supported || (frame->rflags & 0x40000) != 0)) {
+            mutex_lock(&vmm->lock);
 
-        uint64_t l4e = vmm->pmap->root_table[l4i];
+            uint64_t l4e = vmm->pmap->root_table[l4i];
 
-        if (likely(l4e)) {
-            uint64_t *l3 = phys_to_virt(l4e & PTE_ADDR);
-            uint64_t l3e = l3[l3i];
+            if (likely(l4e)) {
+                uint64_t *l3 = phys_to_virt(l4e & PTE_ADDR);
+                uint64_t l3e = l3[l3i];
 
-            if (likely(l3e)) {
-                uint64_t *l2 = phys_to_virt(l3e & PTE_ADDR);
-                uint64_t l2e = l2[l2i];
+                if (likely(l3e)) {
+                    uint64_t *l2 = phys_to_virt(l3e & PTE_ADDR);
+                    uint64_t l2e = l2[l2i];
 
-                if (likely(l2e)) {
-                    uint64_t *l1 = phys_to_virt(l2e & PTE_ADDR);
-                    uint64_t l1e = l1[l1i];
+                    if (likely(l2e)) {
+                        uint64_t *l1 = phys_to_virt(l2e & PTE_ADDR);
+                        uint64_t l1e = l1[l1i];
 
-                    if (should_be_allowed(l1e, was_exec, was_write)) {
-                        invlpg(addr);
-                        mutex_unlock(&vmm->lock);
-                        return;
-                    }
-
-                    if (!was_present) {
-                        vm_region_t *region = vmm_get(vmm, addr);
-
-                        if (likely(region != NULL && (region->flags & (VMM_READ | VMM_WRITE | VMM_EXEC)) != 0)) {
-                            uint64_t pte;
-
-                            if (region->object) {
-                                size_t offset = region->offset + ((addr - region->head) & ~PAGE_MASK);
-                                pte = region->object->ops->get_base_pte(region->object, region, offset);
-                            } else {
-                                page_t *page = alloc_page();
-                                page->anon.references = 1;
-                                memset(page_to_virt(page), 0, PAGE_SIZE);
-                                pte = page_to_phys(page) | PTE_ANON;
-                            }
-
-                            pte |= PTE_DIRTY | PTE_ACCESSED | PTE_USERSPACE | PTE_PRESENT;
-
-                            if (region->flags & VMM_WRITE) pte |= PTE_WRITABLE;
-                            if (!(region->flags & VMM_EXEC) && nx_supported) pte |= PTE_NX;
-
-                            l1i &= ~(ENTRIES_PER_PAGE - 1);
-
-                            for (size_t i = 0; i < ENTRIES_PER_PAGE; i++) {
-                                l1[l1i++] = pte;
-                                pte += 0x1000;
-                            }
-
+                        if (should_be_allowed(l1e, was_exec, was_write)) {
+                            invlpg(addr);
                             mutex_unlock(&vmm->lock);
                             return;
+                        }
+
+                        if (!was_present) {
+                            vm_region_t *region = vmm_get(vmm, addr);
+
+                            if (likely(region != NULL && (region->flags & (VMM_READ | VMM_WRITE | VMM_EXEC)) != 0)) {
+                                uint64_t pte;
+
+                                if (region->object) {
+                                    size_t offset = region->offset + ((addr - region->head) & ~PAGE_MASK);
+                                    pte = region->object->ops->get_base_pte(region->object, region, offset);
+                                } else {
+                                    page_t *page = alloc_page();
+                                    page->anon.references = 1;
+                                    memset(page_to_virt(page), 0, PAGE_SIZE);
+                                    pte = page_to_phys(page) | PTE_ANON;
+                                }
+
+                                pte |= PTE_DIRTY | PTE_ACCESSED | PTE_USERSPACE | PTE_PRESENT;
+
+                                if (region->flags & VMM_WRITE) pte |= PTE_WRITABLE;
+                                if (!(region->flags & VMM_EXEC) && nx_supported) pte |= PTE_NX;
+
+                                l1i &= ~(ENTRIES_PER_PAGE - 1);
+
+                                for (size_t i = 0; i < ENTRIES_PER_PAGE; i++) {
+                                    l1[l1i++] = pte;
+                                    pte += 0x1000;
+                                }
+
+                                mutex_unlock(&vmm->lock);
+                                return;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        mutex_unlock(&vmm->lock);
+            mutex_unlock(&vmm->lock);
+        }
     } else if (!was_user) {
         uint64_t *real_l4 = vmm->pmap->root_table;
 
