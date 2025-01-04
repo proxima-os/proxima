@@ -452,7 +452,8 @@ int sched_create(task_t **out, task_func_t func, void *ctx, struct cpu *cpu) {
         return ERR_OUT_OF_MEMORY;
     }
 
-    void *stack = allocate_kernel_stack();;
+    void *stack = allocate_kernel_stack();
+    ;
     if (!stack) {
         free_xsave(xsave);
         vmfree(task, sizeof(*task));
@@ -470,9 +471,12 @@ int sched_create(task_t **out, task_func_t func, void *ctx, struct cpu *cpu) {
     task->ctx.r12 = (uintptr_t)ctx;
     task->ctx.r13 = (uintptr_t)task;
     task->kernel_stack = stack;
-    task->ctx.rsp = (uintptr_t)task->kernel_stack - sizeof(const void *);
-    *(const void **)task->ctx.rsp = &task_init_stub;
+    task->ctx.rsp = (uintptr_t)task->kernel_stack - sizeof(uintptr_t) * 2;
     task->xsave_area = xsave;
+
+    uintptr_t *stack_frame = (uintptr_t *)task->ctx.rsp;
+    stack_frame[0] = 0;                          // rflags
+    stack_frame[1] = (uintptr_t)&task_init_stub; // return address
 
     task->timeout_event.handler = handle_timeout_expired;
 

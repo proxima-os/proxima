@@ -8,6 +8,8 @@
 .globl switch_task
 .type switch_task, @function
 switch_task:
+    pushfq
+
     mov %rbx, (%rdi)
     mov %rbp, 8(%rdi)
     mov %rsp, 16(%rdi)
@@ -24,6 +26,7 @@ switch_task:
     mov 40(%rsi), %r14
     mov 48(%rsi), %r15
 
+    popfq
     ret
 .size switch_task, . - switch_task
 
