@@ -6,6 +6,7 @@ project(
 )
 
 hydrogen = dependency('hydrogen')
+proxutils = dependency('proxutils')
 
 shared_library(
     'ld64',
@@ -14,7 +15,7 @@ shared_library(
     'main.c',
     'string.c',
     c_args: ['-ffreestanding', '-fno-stack-protector'],
-    dependencies: hydrogen,
+    dependencies: [hydrogen, proxutils],
     install: true,
     link_args: ['-nostdlib'],
     name_prefix: '',
