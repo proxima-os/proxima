@@ -3,12 +3,25 @@
 #include "asm/msr.h"
 #include "compiler.h"
 #include "cpu/cpu.h"
+#include "fs/vfs.h"
+#include "hydrogen/error.h"
+#include "sched/proc.h"
 #include "sys/syscall.h"
 
-syscall_result_t sys_mmap(uintptr_t addr, size_t size, int flags) {
-    int error = vmm_add(&addr, size, flags, NULL, 0);
-    if (likely(error == 0)) return SYSCALL_NUM(addr);
-    else return SYSCALL_ERR(error);
+syscall_result_t sys_mmap(uintptr_t addr, size_t size, int flags, int fd, size_t offset) {
+    if (fd >= 0) {
+        file_t *file = get_file_description(current_proc, fd, false);
+        if (unlikely(!file)) return SYSCALL_ERR(ERR_INVALID_HANDLE);
+
+        int error = vfs_mmap(file, &addr, size, flags, offset);
+        file_deref(file);
+        if (unlikely(error)) return SYSCALL_ERR(error);
+    } else {
+        int error = vmm_add(&addr, size, flags, NULL, 0);
+        if (unlikely(error)) return SYSCALL_ERR(error);
+    }
+
+    return SYSCALL_NUM(addr);
 }
 
 syscall_result_t sys_mprotect(uintptr_t addr, size_t size, int flags) {

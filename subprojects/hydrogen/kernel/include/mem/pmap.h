@@ -18,6 +18,7 @@
 #define PTE_HUGE 0x80
 #define PTE_GLOBAL 0x100
 #define PTE_ANON 0x200
+#define PTE_COW 0x400
 #define PTE_ADDR 0xffffffffff000
 #define PTE_NX 0x8000000000000000
 

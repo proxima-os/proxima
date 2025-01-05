@@ -22,7 +22,7 @@ int copy_to_heap(void **buffer, const void *src, size_t size);
 
 _Noreturn void sys_exit(void);
 
-syscall_result_t sys_mmap(uintptr_t addr, size_t size, int flags);
+syscall_result_t sys_mmap(uintptr_t addr, size_t size, int flags, int fd, size_t offset);
 syscall_result_t sys_mprotect(uintptr_t addr, size_t size, int flags);
 syscall_result_t sys_munmap(uintptr_t addr, size_t size);
 syscall_result_t sys_get_fs_base(void);

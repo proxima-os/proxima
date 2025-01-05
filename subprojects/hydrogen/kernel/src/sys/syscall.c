@@ -52,7 +52,7 @@ static syscall_result_t do_syscall(
 ) {
     switch (num) {
     case SYS_EXIT: sys_exit();
-    case SYS_MMAP: return sys_mmap(a0, a1, a2);
+    case SYS_MMAP: return sys_mmap(a0, a1, a2, a3, a4);
     case SYS_MPROTECT: return sys_mprotect(a0, a1, a2);
     case SYS_MUNMAP: return sys_munmap(a0, a1);
     case SYS_GET_FS_BASE: return sys_get_fs_base();

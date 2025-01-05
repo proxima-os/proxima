@@ -176,6 +176,37 @@ static void handle_page_fault(idt_frame_t *frame) {
                             return;
                         }
 
+                        if (l1e & PTE_COW) {
+                            l1i &= ~(ENTRIES_PER_PAGE - 1);
+                            l1e = l1[l1i];
+                            ASSERT(l1e & PTE_COW);
+
+                            page_t *src = phys_to_page(l1e & PTE_ADDR);
+
+                            if (__atomic_load_n(&src->anon.references, __ATOMIC_ACQUIRE) == 1) {
+                                l1e = (l1e & ~PTE_COW) | PTE_WRITABLE;
+                            } else {
+                                page_t *dest = alloc_page();
+                                dest->anon.references = 1;
+                                dest->anon.autounreserve = false;
+                                memcpy(page_to_virt(dest), page_to_virt(src), PAGE_SIZE);
+                                l1e = (l1e & ~(PTE_ADDR | PTE_COW)) | page_to_phys(dest) | PTE_WRITABLE;
+
+                                size_t new_ref = __atomic_sub_fetch(&src->anon.references, 1, __ATOMIC_ACQ_REL);
+                                ASSERT(new_ref != 0);
+                            }
+
+                            for (size_t i = 0; i < ENTRIES_PER_PAGE; i++) {
+                                l1[l1i++] = l1e;
+                                invlpg(addr);
+                                addr += 0x1000;
+                                l1e += 0x1000;
+                            }
+
+                            mutex_unlock(&vmm->lock);
+                            return;
+                        }
+
                         if (!was_present) {
                             vm_region_t *region = vmm_get(vmm, addr);
 
@@ -188,24 +219,27 @@ static void handle_page_fault(idt_frame_t *frame) {
                                 } else {
                                     page_t *page = alloc_page();
                                     page->anon.references = 1;
+                                    page->anon.autounreserve = false;
                                     memset(page_to_virt(page), 0, PAGE_SIZE);
                                     pte = page_to_phys(page) | PTE_ANON;
                                 }
 
-                                pte |= PTE_DIRTY | PTE_ACCESSED | PTE_USERSPACE | PTE_PRESENT;
+                                if (pte) {
+                                    pte |= PTE_DIRTY | PTE_ACCESSED | PTE_USERSPACE | PTE_PRESENT;
 
-                                if (region->flags & VMM_WRITE) pte |= PTE_WRITABLE;
-                                if (!(region->flags & VMM_EXEC) && nx_supported) pte |= PTE_NX;
+                                    if ((region->flags & VMM_WRITE) && ~(pte & PTE_COW)) pte |= PTE_WRITABLE;
+                                    if (!(region->flags & VMM_EXEC) && nx_supported) pte |= PTE_NX;
 
-                                l1i &= ~(ENTRIES_PER_PAGE - 1);
+                                    l1i &= ~(ENTRIES_PER_PAGE - 1);
 
-                                for (size_t i = 0; i < ENTRIES_PER_PAGE; i++) {
-                                    l1[l1i++] = pte;
-                                    pte += 0x1000;
+                                    for (size_t i = 0; i < ENTRIES_PER_PAGE; i++) {
+                                        l1[l1i++] = pte;
+                                        pte += 0x1000;
+                                    }
+
+                                    mutex_unlock(&vmm->lock);
+                                    return;
                                 }
-
-                                mutex_unlock(&vmm->lock);
-                                return;
                             }
                         }
                     }
@@ -308,6 +342,7 @@ int pmap_clone(pmap_t **out) {
 
                         if (l1e & PTE_WRITABLE) {
                             l1e &= ~PTE_WRITABLE;
+                            l1e |= PTE_COW;
                             l1s[l1i] = l1e;
                             invlpg((l4i << 39) | (l3i << 30) | (l2i << 21) | (l1i << 12));
                             ctx.shootdown = true;
@@ -377,7 +412,8 @@ void pmap_destroy(pmap_t *pmap) {
                         page_t *page = phys_to_page(l1e & PTE_ADDR);
 
                         if (__atomic_fetch_sub(&page->anon.references, 1, __ATOMIC_ACQ_REL) == 1) {
-                            free_page(page);
+                            if (page->anon.autounreserve) free_page_now(page);
+                            else free_page(page);
                         }
                     }
                 }
@@ -605,6 +641,7 @@ void alloc_and_map(uintptr_t vaddr, size_t size) {
                         cur_phys = page_to_phys(page);
                         cur_phys_rem = PAGE_SIZE / 4096;
                         page->anon.references = 1;
+                        page->anon.autounreserve = false;
                     }
 
                     uint64_t pte = cur_phys | flags;

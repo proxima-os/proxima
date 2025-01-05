@@ -33,6 +33,7 @@ typedef struct {
     int (*write)(file_t *self, const void *buffer, size_t *size);
     int (*pread)(file_t *self, void *buffer, size_t *size, uint64_t position);
     int (*pwrite)(file_t *self, const void *buffer, size_t *size, uint64_t position);
+    int (*mmap)(file_t *self, uintptr_t *addr, size_t size, int flags, size_t offset);
 } file_ops_t;
 
 struct file {
@@ -109,6 +110,7 @@ typedef struct {
             // write as many bytes as possible from buffer into position, and set size to the number of written bytes.
             // note that setting the number of written bytes is always done, even if an error is returned
             int (*write)(vnode_t *self, const void *buffer, size_t *size, uint64_t position);
+            int (*mmap)(vnode_t *self, uintptr_t *addr, size_t size, int flags, size_t offset);
         } reg;
     };
 } vnode_ops_t;
@@ -153,6 +155,7 @@ int vfs_read(file_t *file, void *buffer, size_t *size);
 int vfs_write(file_t *file, const void *buffer, size_t *size);
 int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position);
 int vfs_pwrite(file_t *file, const void *buffer, size_t *size, uint64_t position);
+int vfs_mmap(file_t *file, uintptr_t *addr, size_t size, int flags, size_t offset);
 
 uint64_t get_vfs_id(void);
 

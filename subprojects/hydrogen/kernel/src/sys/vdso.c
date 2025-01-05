@@ -4,7 +4,6 @@
 #include "mem/pmm.h"
 #include "mem/vmm.h"
 #include "sched/proc.h"
-#include "string.h"
 #include "util/panic.h"
 #include <stdint.h>
 
@@ -16,19 +15,11 @@ static void vdso_free(UNUSED vm_object_t *self) {
 }
 
 static bool vdso_allow_flags(UNUSED vm_object_t *self, int flags) {
-    return (flags & VMM_WRITE) == 0 || (flags & VMM_PRIVATE) != 0;
+    return (flags & VMM_WRITE) == 0;
 }
 
-static uint64_t vdso_get_base_pte(UNUSED vm_object_t *self, vm_region_t *region, size_t offset) {
+static uint64_t vdso_get_base_pte(UNUSED vm_object_t *self, UNUSED vm_region_t *region, size_t offset) {
     const void *base = offset ? &__vdso_start + (offset - PAGE_SIZE) : &vdso_info;
-
-    if (region->flags & VMM_PRIVATE) {
-        page_t *page = alloc_page();
-        page->anon.references = 1;
-        memcpy(page_to_virt(page), base, PAGE_SIZE);
-        return page_to_phys(page) | PTE_ANON;
-    }
-
     return sym_to_phys(base);
 }
 

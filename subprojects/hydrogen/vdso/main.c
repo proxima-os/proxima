@@ -9,11 +9,14 @@ static _Noreturn void sys_exit(void) {
     __builtin_unreachable();
 }
 
-/*static syscall_result_t sys_mmap(void *addr, size_t size, int flags) {
+/*static syscall_result_t sys_mmap(void *addr, size_t size, int flags, int fd, size_t offset) {
+    register int r10 asm("r10") = fd;
+    register size_t r8 asm("r8") = offset;
+
     syscall_result_t result;
     asm volatile("syscall"
                  : "=a"(result.value.num), "=d"(result.error)
-                 : "a"(SYS_MMAP), "D"(addr), "S"(size), "d"(flags)
+                 : "a"(SYS_MMAP), "D"(addr), "S"(size), "d"(flags), "r" (r10), "r" (r8)
                  : "rcx", "r11", "memory");
     return result;
 }

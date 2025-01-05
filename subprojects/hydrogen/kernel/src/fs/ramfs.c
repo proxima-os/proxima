@@ -7,6 +7,7 @@
 #include "hydrogen/vfs.h"
 #include "mem/pmm.h"
 #include "mem/vheap.h"
+#include "mem/vmm.h"
 #include "sched/mutex.h"
 #include "sched/proc.h"
 #include "string.h"
@@ -69,12 +70,17 @@ struct ramfs_vnode {
         } link;
         struct {
             xarray_t pages;
+            vm_object_t obj;
         } reg;
     };
 };
 
 static void free_page_callback(void *ptr, void *ctx) {
-    free_page_now(ptr);
+    page_t *page = virt_to_page(ptr);
+    if (__atomic_fetch_sub(&page->anon.references, 1, __ATOMIC_ACQ_REL) == 1) {
+        free_page_now(page);
+    }
+
     ((ramfs_vnode_t *)ctx)->blocks -= 1;
 }
 
@@ -199,6 +205,7 @@ static int ramfs_vnode_reg_truncate(vnode_t *ptr, uint64_t size) {
 
     xarray_trunc(&self->reg.pages, (size + PAGE_MASK) >> PAGE_SHIFT, free_page_callback, self);
     self->size = size;
+    self->reg.obj.size = (size + PAGE_MASK) & ~PAGE_MASK;
 
     self->ctime = get_timestamp();
     self->mtime = self->ctime;
@@ -210,6 +217,25 @@ static int ramfs_vnode_reg_get_size(vnode_t *ptr, uint64_t *out) {
     ramfs_vnode_t *self = (ramfs_vnode_t *)ptr;
     *out = self->size;
     return 0;
+}
+
+// you must own self->base.lock
+static page_t *get_page_for_writing(ramfs_vnode_t *self, size_t index) {
+    page_t *page = xarray_get(&self->reg.pages, index);
+
+    if (page == NULL) {
+        page = alloc_page_now();
+        if (unlikely(!page)) return NULL;
+
+        page->anon.references = 1;
+        page->anon.autounreserve = true;
+
+        memset(page_to_virt(page), 0, PAGE_SIZE);
+        xarray_put(&self->reg.pages, index, page);
+        self->blocks += 1;
+    }
+
+    return page;
 }
 
 static int ramfs_vnode_reg_read(vnode_t *ptr, void *buffer, size_t *size, uint64_t position) {
@@ -265,18 +291,10 @@ static int ramfs_vnode_reg_write(vnode_t *ptr, const void *buffer, size_t *size,
         size_t max = PAGE_SIZE - offset;
         size_t cur = max < remaining ? max : remaining;
 
-        page_t *page = xarray_get(&self->reg.pages, index);
-
-        if (page == NULL) {
-            page = alloc_page_now();
-            if (unlikely(!page)) {
-                error = ERR_DISK_FULL;
-                break;
-            }
-
-            memset(page_to_virt(page), 0, PAGE_SIZE);
-            xarray_put(&self->reg.pages, index, page);
-            self->blocks += 1;
+        page_t *page = get_page_for_writing(self, index);
+        if (unlikely(!page)) {
+            error = ERR_DISK_FULL;
+            break;
         }
 
         error = memcpy_user(page_to_virt(page) + offset, buffer, cur);
@@ -289,7 +307,11 @@ static int ramfs_vnode_reg_write(vnode_t *ptr, const void *buffer, size_t *size,
     }
 
     if (likely(error == 0 || total != 0)) {
-        if (position > self->size) self->size = position;
+        if (position > self->size) {
+            self->size = position;
+            self->reg.obj.size = (position + PAGE_MASK) & ~PAGE_MASK;
+        }
+
         self->ctime = get_timestamp();
         self->mtime = self->ctime;
         error = 0;
@@ -297,6 +319,24 @@ static int ramfs_vnode_reg_write(vnode_t *ptr, const void *buffer, size_t *size,
 
     *size = total;
     return error;
+}
+
+static int ramfs_vnode_reg_mmap(vnode_t *ptr, uintptr_t *addr, size_t size, int flags, size_t offset) {
+    ramfs_vnode_t *self = (ramfs_vnode_t *)ptr;
+    bool first = __atomic_load_n(&self->reg.obj.references, __ATOMIC_ACQUIRE) == 0;
+
+    int error = vmm_add(addr, size, flags, &self->reg.obj, offset);
+    if (unlikely(error)) return error;
+
+    // technically this is the wrong moment to do this, but whatever
+    self->atime = get_timestamp();
+    if (flags & VMM_WRITE) {
+        self->ctime = self->atime;
+        self->mtime = self->atime;
+    }
+
+    if (first) vnode_ref(ptr);
+    return 0;
 }
 
 static const vnode_ops_t ramfs_vnode_reg_ops = {
@@ -310,6 +350,42 @@ static const vnode_ops_t ramfs_vnode_reg_ops = {
         .reg.get_size = ramfs_vnode_reg_get_size,
         .reg.read = ramfs_vnode_reg_read,
         .reg.write = ramfs_vnode_reg_write,
+        .reg.mmap = ramfs_vnode_reg_mmap,
+};
+
+static void ramfs_file_object_free(vm_object_t *self) {
+    ramfs_vnode_t *vnode = node_to_obj(ramfs_vnode_t, reg.obj, self);
+    vnode_deref(&vnode->base);
+}
+
+static bool ramfs_file_object_allow_flags(UNUSED vm_object_t *self, UNUSED int flags) {
+    return true;
+}
+
+static uint64_t ramfs_file_object_get_base_pte(vm_object_t *self, vm_region_t *region, size_t offset) {
+    ramfs_vnode_t *vnode = node_to_obj(ramfs_vnode_t, reg.obj, self);
+    mutex_lock(&vnode->base.lock);
+
+    if (unlikely(offset >= self->size)) {
+        mutex_unlock(&vnode->base.lock);
+        return 0;
+    }
+
+    page_t *page = get_page_for_writing(vnode, offset >> PAGE_SHIFT);
+    if (unlikely(!page)) panic("TODO: mmap holes that cannot be filled");
+    __atomic_fetch_add(&page->anon.references, 1, __ATOMIC_ACQ_REL);
+
+    mutex_unlock(&vnode->base.lock);
+
+    uint64_t pte = page_to_phys(page) | PTE_ANON;
+    if (region->flags & VMM_PRIVATE) pte |= PTE_COW;
+    return pte;
+}
+
+static const vm_object_ops_t ramfs_file_object_ops = {
+        .free = ramfs_file_object_free,
+        .allow_flags = ramfs_file_object_allow_flags,
+        .get_base_pte = ramfs_file_object_get_base_pte,
 };
 
 static ramfs_vnode_t *create_vnode(ramfs_t *fs, ramfs_vnode_t *dir, uint32_t mode, ident_t *ident) {
@@ -352,7 +428,10 @@ static ramfs_vnode_t *create_vnode(ramfs_t *fs, ramfs_vnode_t *dir, uint32_t mod
         vnode->dir.next_id = 2;
         break;
     case VNODE_SYMLINK: vnode->base.ops = &ramfs_vnode_link_ops; break;
-    case VNODE_REGULAR: vnode->base.ops = &ramfs_vnode_reg_ops; break;
+    case VNODE_REGULAR:
+        vnode->base.ops = &ramfs_vnode_reg_ops;
+        vnode->reg.obj.ops = &ramfs_file_object_ops;
+        break;
     default: vnode->base.ops = &ramfs_vnode_unknown_ops; break;
     }
 
@@ -397,7 +476,15 @@ static ramfs_dirent_t *next_dirent(ramfs_vnode_t *vnode, ramfs_dirent_t *prev) {
     return node_to_obj(ramfs_dirent_t, iter_node, prev ? prev->iter_node.next : vnode->dir.iter_list.first);
 }
 
-static int emit_dirent(void *buffer, size_t rem, const void *name, size_t length, vnode_t *vnode, uint64_t pos, size_t *len) {
+static int emit_dirent(
+        void *buffer,
+        size_t rem,
+        const void *name,
+        size_t length,
+        vnode_t *vnode,
+        uint64_t pos,
+        size_t *len
+) {
     *len = 0;
 
     size_t needed_length = offsetof(hydrogen_dirent_t, name) + length;

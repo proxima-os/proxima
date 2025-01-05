@@ -23,6 +23,7 @@ typedef union page {
     struct {
         size_t references;
         union page *shootdown_next;
+        bool autounreserve;
     } anon;
 } page_t;
 

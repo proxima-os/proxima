@@ -6,6 +6,7 @@
 #include "hydrogen/stat.h"
 #include "hydrogen/vfs.h"
 #include "mem/vheap.h"
+#include "mem/vmm.h"
 #include "sched/mutex.h"
 #include "sched/proc.h"
 #include "string.h"
@@ -118,6 +119,14 @@ static int opened_regular_file_pwrite(file_t *ptr, const void *buffer, size_t *s
     return error;
 }
 
+static int opened_regular_file_mmap(file_t *ptr, uintptr_t *addr, size_t size, int flags, size_t offset) {
+    vnode_t *vnode = ptr->vnode;
+    mutex_lock(&vnode->lock);
+    int error = vnode->ops->reg.mmap(vnode, addr, size, flags, offset);
+    mutex_unlock(&vnode->lock);
+    return error;
+}
+
 static const file_ops_t regular_file_ops = {
         .free = opened_regular_file_free,
         .read = opened_regular_file_read,
@@ -125,6 +134,7 @@ static const file_ops_t regular_file_ops = {
         .write = opened_regular_file_write,
         .pread = opened_regular_file_pread,
         .pwrite = opened_regular_file_pwrite,
+        .mmap = opened_regular_file_mmap,
 };
 
 static int open_regular_file(file_t **out) {
@@ -916,6 +926,14 @@ int vfs_pwrite(file_t *file, const void *buffer, size_t *size, uint64_t position
     if (*size == 0) return 0;
 
     return file->ops->pwrite(file, buffer, size, position);
+}
+
+int vfs_mmap(file_t *file, uintptr_t *addr, size_t size, int flags, size_t offset) {
+    if ((file->mode & O_RDONLY) == 0) return ERR_ACCESS_DENIED;
+    if ((flags & VMM_WRITE) != 0 && (file->mode & O_WRONLY) == 0) return ERR_ACCESS_DENIED;
+    if (!file->ops->mmap) return ERR_NOT_IMPLEMENTED;
+
+    return file->ops->mmap(file, addr, size, flags, offset);
 }
 
 int vfs_utimes(file_t *rel, const void *path, size_t path_len, int64_t atime, int64_t mtime, bool follow) {
