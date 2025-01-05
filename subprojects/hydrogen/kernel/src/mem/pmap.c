@@ -2,7 +2,6 @@
 #include "asm/cr.h"
 #include "asm/idle.h"
 #include "asm/irq.h"
-#include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/exc.h"
 #include "cpu/idt.h"
@@ -13,6 +12,7 @@
 #include "mem/pmm.h"
 #include "mem/vheap.h"
 #include "mem/vmm.h"
+#include "proxima/compiler.h"
 #include "sched/mutex.h"
 #include "sched/proc.h"
 #include "string.h"
@@ -192,7 +192,7 @@ static void handle_page_fault(idt_frame_t *frame) {
                                 memcpy(page_to_virt(dest), page_to_virt(src), PAGE_SIZE);
                                 l1e = (l1e & ~(PTE_ADDR | PTE_COW)) | page_to_phys(dest) | PTE_WRITABLE;
 
-                                size_t new_ref = __atomic_sub_fetch(&src->anon.references, 1, __ATOMIC_ACQ_REL);
+                                UNUSED size_t new_ref = __atomic_sub_fetch(&src->anon.references, 1, __ATOMIC_ACQ_REL);
                                 ASSERT(new_ref != 0);
                             }
 

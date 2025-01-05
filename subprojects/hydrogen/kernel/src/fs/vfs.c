@@ -1,5 +1,5 @@
 #include "fs/vfs.h"
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "hydrogen/error.h"
 #include "hydrogen/fcntl.h"
 #include "hydrogen/limits.h"
@@ -270,23 +270,24 @@ static int vfs_lookup(vnode_t *base, vnode_t **out, const void **path, size_t *l
                     mutex_lock(&child->lock);
                     error = child->ops->link.read(child, &target, &target_len);
                     mutex_unlock(&child->lock);
-                    vnode_deref(child);
                     if (unlikely(error)) {
                         mutex_unlock(&base->lock);
                         vnode_deref(base);
                         vnode_deref(root);
+                        vnode_deref(child);
                         return error;
                     }
 
+                    vnode_t *link = child;
                     error = vfs_lookup(base, &child, &target, &target_len, lflags, ident);
+                    vnode_deref(link);
+                    vnode_deref(base);
                     if (unlikely(error)) {
-                        vnode_deref(base);
                         vnode_deref(root);
                         return error;
                     }
 
                     if (noff == len && (flags & VFS_PARENT) != 0) {
-                        vnode_deref(base);
                         vnode_deref(root);
                         *out = child;
                         *path = target;
@@ -306,14 +307,18 @@ static int vfs_lookup(vnode_t *base, vnode_t **out, const void **path, size_t *l
                         vnode_deref(child);
                         break;
                     }
+
+                    mutex_unlock(&base->lock);
+                    vnode_deref(base);
+                    mutex_lock(&child->lock);
+                } else {
+                    mutex_unlock(&base->lock);
+                    vnode_deref(base);
+                    mutex_lock(&child->lock);
                 }
 
                 ASSERT(noff != len || (flags & VFS_PARENT) == 0);
 
-                mutex_unlock(&base->lock);
-                vnode_deref(base);
-
-                mutex_lock(&child->lock);
                 if (!is_dot_dot) follow_mounts(&child);
                 base = child;
             }
@@ -896,8 +901,8 @@ int vfs_seek(file_t *file, uint64_t *offset, hydrogen_whence_t whence) {
     return file->ops->seek(file, offset, whence);
 }
 
-int vfs_read(file_t *file, void *buffer, size_t *size) {
-    if ((file->mode & O_RDONLY) == 0) return ERR_INVALID_HANDLE;
+int vfs_read(file_t *file, void *buffer, size_t *size, int read_flag) {
+    if ((file->mode & read_flag) == 0) return ERR_INVALID_HANDLE;
     if (!file->ops->read) return ERR_NOT_IMPLEMENTED;
     if (*size == 0) return 0;
 
@@ -912,8 +917,8 @@ int vfs_write(file_t *file, const void *buffer, size_t *size) {
     return file->ops->write(file, buffer, size);
 }
 
-int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position) {
-    if ((file->mode & O_RDONLY) == 0) return ERR_INVALID_HANDLE;
+int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position, int read_flag) {
+    if ((file->mode & read_flag) == 0) return ERR_INVALID_HANDLE;
     if (!file->ops->pread) return ERR_NOT_IMPLEMENTED;
     if (*size == 0) return 0;
 
@@ -928,9 +933,9 @@ int vfs_pwrite(file_t *file, const void *buffer, size_t *size, uint64_t position
     return file->ops->pwrite(file, buffer, size, position);
 }
 
-int vfs_mmap(file_t *file, uintptr_t *addr, size_t size, int flags, size_t offset) {
-    if ((file->mode & O_RDONLY) == 0) return ERR_ACCESS_DENIED;
-    if ((flags & VMM_WRITE) != 0 && (file->mode & O_WRONLY) == 0) return ERR_ACCESS_DENIED;
+int vfs_mmap(file_t *file, uintptr_t *addr, size_t size, int flags, size_t offset, int rflag) {
+    if ((file->mode & rflag) == 0) return ERR_ACCESS_DENIED;
+    if ((flags & (VMM_WRITE | VMM_PRIVATE)) == VMM_WRITE && (file->mode & O_WRONLY) == 0) return ERR_ACCESS_DENIED;
     if (!file->ops->mmap) return ERR_NOT_IMPLEMENTED;
 
     return file->ops->mmap(file, addr, size, flags, offset);

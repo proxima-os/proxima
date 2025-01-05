@@ -1,6 +1,5 @@
 #include "asm/idle.h"
 #include "asm/irq.h"
-#include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/exc.h"
 #include "cpu/idt.h"
@@ -12,14 +11,19 @@
 #include "drv/pic.h"
 #include "fs/ramfs.h"
 #include "fs/vfs.h"
+#include "hydrogen/error.h"
+#include "hydrogen/fcntl.h"
 #include "init/initrd.h"
 #include "limine.h"
 #include "mem/pmm.h"
+#include "mem/vheap.h"
 #include "mem/vmm.h"
+#include "proxima/compiler.h"
+#include "sched/exec.h"
+#include "sched/mutex.h"
 #include "sched/proc.h"
 #include "sched/sched.h"
 #include "string.h"
-#include "sys/elf.h"
 #include "sys/vdso.h"
 #include "util/panic.h"
 #include "util/print.h"
@@ -32,7 +36,10 @@ __attribute__((used, section(".requests2"))) LIMINE_REQUESTS_END_MARKER;
 
 LIMINE_REQ LIMINE_BASE_REVISION(3);
 
-extern const elf_header_t __vdso_start;
+static const char *init_names[] = {
+        "/bin/init",
+        "/bin/sh",
+};
 
 static void init_process_func(UNUSED void *ctx) {
     pmm_stats_t stats = get_pmm_stats();
@@ -41,26 +48,47 @@ static void init_process_func(UNUSED void *ctx) {
            stats.avail << (PAGE_SHIFT - 10),
            stats.free << (PAGE_SHIFT - 10));
 
-    int error = map_vdso(&current_proc->vdso);
-    if (error) panic("failed to map vdso (%d)", error);
-
-    printk("mapped vdso at 0x%X\n", current_proc->vdso);
-
-    uintptr_t stack_base = 0;
-    error = vmm_add(&stack_base, PAGE_SIZE, VMM_READ | VMM_WRITE, NULL, 0);
-    if (error) panic("failed to allocate user stack (%d)", error);
-
     file_t *kcon;
-    error = create_kcon_handle(&kcon);
+    int error = create_kcon_handle(&kcon);
     if (error) panic("failed to allocate kernel console handle (%d)", error);
 
-    int fd = alloc_fd(kcon, 0);
-    if (fd < 0) panic("failed to allocate kernel console fd (%d)", -fd);
+    mutex_lock(&current_proc->fds_lock);
+
+    for (int i = 0; i < 3; i++) {
+        int error = assign_fd(current_proc, i, kcon, 0);
+        if (error) panic("failed to assign fd to kernel console (%d)", error);
+    }
+
+    mutex_unlock(&current_proc->fds_lock);
     file_deref(kcon);
 
-    ASSERT(fd == 0);
+    execve_string_t *str = vmalloc(sizeof(*str));
+    if (!str) panic("failed to allocate execve args");
 
-    enter_user_mode(current_proc->vdso + __vdso_start.entry, stack_base + PAGE_SIZE - 8);
+    for (size_t i = 0; i < sizeof(init_names) / sizeof(*init_names); i++) {
+        printk("executing init at %s...\n", init_names[i]);
+
+        size_t len = strlen(init_names[i]);
+
+        file_t *file;
+        error = vfs_open(NULL, &file, init_names[i], len, O_EXEC | O_NODIR, 0);
+
+        if (likely(error == 0)) {
+            str->data = vmalloc(len);
+            if (!str->data) panic("failed to allocate execve argument string");
+            memcpy(str->data, init_names[i], len);
+            str->length = len;
+
+            error = execve(file, str, 1, NULL, 0);
+            panic("execve failed (%d)", error);
+        } else if (error == ERR_NOT_FOUND) {
+            printk("failed to open executable (%d)\n", error);
+        } else {
+            panic("failed to open init executable (%d)", error);
+        }
+    }
+
+    panic("failed to start init process");
 }
 
 static void init_kernel(UNUSED void *ctx) {

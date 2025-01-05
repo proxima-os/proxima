@@ -1,6 +1,5 @@
+#include "string.h"
 #include "proxima/compiler.h"
-#include <stddef.h>
-#include <stdint.h>
 
 HIDDEN int memcmp(const void *lhs, const void *rhs, size_t count) {
     const unsigned char *byte_lhs = lhs;
@@ -48,29 +47,13 @@ HIDDEN void *memset(void *dest, int ch, size_t count) {
     return dest;
 }
 
-HIDDEN size_t strlen(const char *s) {
-    size_t cur = 0;
-    while (s[cur] != 0) cur++;
-    return cur;
-}
-
-HIDDEN size_t strnlen(const char *s, size_t max) {
-    size_t cur = 0;
-    while (cur < max && s[cur] != 0) cur++;
-    return cur;
-}
-
 HIDDEN int strcmp(const char *s1, const char *s2) {
-    size_t i = 0;
-
     for (;;) {
-        unsigned char c1 = s1[i];
-        unsigned char c2 = s2[i];
+        unsigned char c1 = *s1++;
+        unsigned char c2 = *s2++;
 
         if (c1 < c2) return -1;
         if (c1 > c2) return 1;
         if (c1 == 0) return 0;
-
-        i += 1;
     }
 }

@@ -6,7 +6,7 @@
 _Noreturn void panic(const char *format, ...);
 
 #ifndef NDEBUG
-#include "compiler.h"
+#include "proxima/compiler.h"
 
 #define ASSERT(x)                                                                                                      \
     do {                                                                                                               \

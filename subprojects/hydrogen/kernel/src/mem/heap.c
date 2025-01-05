@@ -1,5 +1,5 @@
 #include "mem/heap.h"
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "mem/pmm.h"
 #include "sched/mutex.h"
 #include "string.h"

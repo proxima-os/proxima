@@ -1,26 +1,14 @@
 #include "fs/vfs.h"
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "hydrogen/error.h"
 #include "hydrogen/stat.h"
 #include "mem/vheap.h"
 #include "sched/proc.h"
-#include "string.h"
 #include "sys/syscall.h"
 #include "sys/sysvecs.h"
 
 syscall_result_t sys_umask(uint32_t mask) {
     return SYSCALL_NUM(vfs_umask(mask));
-}
-
-static int fd_to_file_opt(int fd, file_t **out) {
-    if (fd < 0) {
-        *out = NULL;
-        return 0;
-    }
-
-    file_t *file = get_file_description(current_proc, fd, false);
-    *out = file;
-    return likely(file) ? 0 : ERR_INVALID_HANDLE;
 }
 
 syscall_result_t sys_mknod(int fd, const void *path, size_t path_len, uint32_t mode) {

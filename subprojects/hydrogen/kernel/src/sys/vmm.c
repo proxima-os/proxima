@@ -1,10 +1,11 @@
 #include "mem/vmm.h"
 #include "asm/fsgsbase.h"
 #include "asm/msr.h"
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "cpu/cpu.h"
 #include "fs/vfs.h"
 #include "hydrogen/error.h"
+#include "hydrogen/fcntl.h"
 #include "sched/proc.h"
 #include "sys/syscall.h"
 
@@ -13,7 +14,7 @@ syscall_result_t sys_mmap(uintptr_t addr, size_t size, int flags, int fd, size_t
         file_t *file = get_file_description(current_proc, fd, false);
         if (unlikely(!file)) return SYSCALL_ERR(ERR_INVALID_HANDLE);
 
-        int error = vfs_mmap(file, &addr, size, flags, offset);
+        int error = vfs_mmap(file, &addr, size, flags, offset, O_RDONLY);
         file_deref(file);
         if (unlikely(error)) return SYSCALL_ERR(error);
     } else {

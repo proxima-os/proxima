@@ -1,5 +1,6 @@
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "hydrogen/error.h"
+#include "hydrogen/fcntl.h"
 #include "sched/proc.h"
 #include "sys/syscall.h"
 
@@ -24,7 +25,7 @@ syscall_result_t sys_read(int fd, void *buf, size_t size) {
     file_t *file = get_file_description(current_proc, fd, false);
     if (unlikely(!file)) return SYSCALL_ERR(ERR_INVALID_HANDLE);
 
-    error = vfs_read(file, buf, &size);
+    error = vfs_read(file, buf, &size, O_RDONLY);
     file_deref(file);
 
     return likely(!error) ? SYSCALL_NUM(size) : SYSCALL_ERR(error);
@@ -50,7 +51,7 @@ syscall_result_t sys_pread(int fd, void *buf, size_t size, uint64_t position) {
     file_t *file = get_file_description(current_proc, fd, false);
     if (unlikely(!file)) return SYSCALL_ERR(ERR_INVALID_HANDLE);
 
-    error = vfs_pread(file, buf, &size, position);
+    error = vfs_pread(file, buf, &size, position, O_RDONLY);
     file_deref(file);
 
     return likely(!error) ? SYSCALL_NUM(size) : SYSCALL_ERR(error);

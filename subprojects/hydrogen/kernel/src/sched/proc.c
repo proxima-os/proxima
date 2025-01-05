@@ -4,6 +4,7 @@
 #include "hydrogen/error.h"
 #include "mem/vheap.h"
 #include "mem/vmm.h"
+#include "proxima/compiler.h"
 #include "sched/mutex.h"
 #include "sched/sched.h"
 #include "string.h"
@@ -48,6 +49,30 @@ void proc_deref(proc_t *proc) {
 }
 
 void proc_make_zombie(proc_t *proc) {
+    ident_deref(proc->identity);
+    vnode_deref(proc->root);
+    vmm_deref(proc->vmm);
+
+    proc->identity = NULL;
+    proc->root = NULL;
+    proc->vmm = NULL;
+
+    for (long i = 0; i < proc->fd_capacity; i++) {
+        if (proc->fds[i].file) {
+            file_deref(proc->fds[i].file);
+        }
+    }
+
+    vmfree(proc->fds, proc->fd_capacity * sizeof(*proc->fds));
+    proc->fds = NULL;
+    proc->fd_capacity = 0;
+    proc->fd_search_min = 0;
+
+    mutex_lock(&proc_map_lock);
+    UNUSED void *old = idmap_free(&proc_map, proc->id);
+    ASSERT(proc == old);
+    mutex_unlock(&proc_map_lock);
+
     task_t *cur = node_to_obj(task_t, priv_node, proc->waiting_tasks.first);
     while (cur != NULL) {
         task_t *next = node_to_obj(task_t, priv_node, cur->priv_node.next);
@@ -56,9 +81,6 @@ void proc_make_zombie(proc_t *proc) {
     }
 
     list_clear(&proc->waiting_tasks);
-
-    vmm_deref(proc->vmm);
-    proc->vmm = NULL;
 }
 
 int create_thread(task_t **out, task_func_t func, void *ctx, cpu_t *cpu) {

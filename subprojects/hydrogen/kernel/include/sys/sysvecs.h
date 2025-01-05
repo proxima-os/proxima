@@ -47,6 +47,8 @@ typedef enum {
     SYS_WRITE,
     SYS_PREAD,
     SYS_PWRITE,
+    SYS_EXECVE,
+    SYS_FEXECVE,
 } syscall_vector_t;
 
 typedef struct {
@@ -60,5 +62,15 @@ typedef struct {
 
     bool follow_symlinks;
 } sys_link_args_t;
+
+typedef struct {
+    const void **argv;
+    size_t *arg_sizes;
+    size_t argv_count;
+
+    const void **envp;
+    size_t *env_sizes;
+    size_t envp_count;
+} sys_execve_args_t;
 
 #endif // HYDROGEN_SYS_SYSVECS_H

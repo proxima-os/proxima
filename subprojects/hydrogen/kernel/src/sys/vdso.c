@@ -1,6 +1,5 @@
 #include "sys/vdso.h"
-#include "compiler.h"
-#include "mem/heap.h"
+#include "proxima/compiler.h"
 #include "mem/pmm.h"
 #include "mem/vmm.h"
 #include "sched/proc.h"
@@ -28,7 +27,7 @@ static vm_object_ops_t vdso_ops = {
         .allow_flags = vdso_allow_flags,
         .get_base_pte = vdso_get_base_pte,
 };
-static vm_object_t vdso_object = {.ops = &vdso_ops, .references = 1};
+vm_object_t vdso_object = {.ops = &vdso_ops, .references = 1};
 static size_t vdso_image_size;
 
 void init_vdso(void) {

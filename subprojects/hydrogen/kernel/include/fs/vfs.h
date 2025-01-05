@@ -151,11 +151,11 @@ int vfs_chmod(file_t *rel, const void *path, size_t path_len, uint32_t mode, boo
 int vfs_fchmod(file_t *file, uint32_t mode);
 
 int vfs_seek(file_t *file, uint64_t *offset, hydrogen_whence_t whence);
-int vfs_read(file_t *file, void *buffer, size_t *size);
+int vfs_read(file_t *file, void *buffer, size_t *size, int read_flag);
 int vfs_write(file_t *file, const void *buffer, size_t *size);
-int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position);
+int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position, int read_flag);
 int vfs_pwrite(file_t *file, const void *buffer, size_t *size, uint64_t position);
-int vfs_mmap(file_t *file, uintptr_t *addr, size_t size, int flags, size_t offset);
+int vfs_mmap(file_t *file, uintptr_t *addr, size_t size, int flags, size_t offset, int rflag);
 
 uint64_t get_vfs_id(void);
 

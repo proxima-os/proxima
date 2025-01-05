@@ -14,6 +14,7 @@ cleanup () {
 trap cleanup EXIT
 chmod 755 "$dir"
 meson install --destdir "$dir" --tags runtime --strip
+ln -s usr/bin "$dir/bin"
 ln -s usr/lib "$dir/lib"
 
 # Create archive

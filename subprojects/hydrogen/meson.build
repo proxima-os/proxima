@@ -6,6 +6,8 @@ project(
     version: '0.1.0',
 )
 
+proxutils = dependency('proxutils')
+
 objcopy = find_program('objcopy')
 strip = find_program('strip')
 
@@ -25,3 +27,17 @@ uacpi = subproject('uacpi')
 subdir('lib')
 subdir('vdso')
 subdir('kernel')
+
+install_headers(
+    'include/hydrogen/dirent.h',
+    'include/hydrogen/error.h',
+    'include/hydrogen/fcntl.h',
+    'include/hydrogen/limits.h',
+    'include/hydrogen/sched.h',
+    'include/hydrogen/stat.h',
+    'include/hydrogen/vfs.h',
+    subdir: 'hydrogen',
+)
+
+hydrogen_dep = declare_dependency(include_directories: api_inc, dependencies: proxutils, link_with: vdso)
+meson.override_dependency('hydrogen', hydrogen_dep)

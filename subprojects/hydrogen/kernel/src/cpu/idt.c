@@ -1,9 +1,9 @@
 #include "cpu/idt.h"
 #include "asm/msr.h"
 #include "asm/tables.h"
-#include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/gdt.h"
+#include "proxima/compiler.h"
 #include "util/panic.h"
 #include <stdint.h>
 

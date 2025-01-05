@@ -7,6 +7,6 @@ if test "$#" -ne 1; then
 fi
 
 meson setup build --reconfigure --cross-file="scripts/cross/$1.txt" -Dbuildtype=release -Db_lto=true -Db_lto_mode=thin \
-    -Db_ndebug=true
+    -Db_ndebug=true -Dprefix=/usr
 cd build
 ../scripts/mkiso.sh proxima.iso

@@ -1,12 +1,13 @@
 #include "mem/vmm.h"
-#include "compiler.h"
 #include "hydrogen/error.h"
 #include "mem/pmap.h"
 #include "mem/pmm.h"
 #include "mem/vheap.h"
+#include "proxima/compiler.h"
 #include "sched/mutex.h"
 #include "sched/proc.h"
 #include "string.h"
+#include "sys/vdso.h"
 #include "util/list.h"
 #include "util/panic.h"
 #include <stdint.h>
@@ -251,6 +252,16 @@ static void merge_or_insert(vmm_t *vmm, vm_region_t *prev, vm_region_t *next, vm
 
 static int remove_overlapping(vmm_t *vmm, vm_region_t **prev, vm_region_t **next, uintptr_t head, uintptr_t tail) {
     vm_region_t *start = *next;
+    vm_region_t *end = start;
+
+    while (end != NULL && end->head <= tail) {
+        // prevent userspace from removing vdso regions
+        // this has to be done in a separate pass because otherwise partial unmaps may occur
+        if (end->object == &vdso_object) return ERR_INVALID_ARGUMENT;
+
+        end = node_to_obj(vm_region_t, node, end->node.next);
+    }
+
     vm_region_t *cur = start;
 
     while (cur != NULL && cur->head <= tail) {
@@ -318,6 +329,7 @@ static int add_exact(vmm_t *vmm, uintptr_t addr, size_t size, int flags, vm_obje
     addr &= ~PAGE_MASK;
     tail |= PAGE_MASK;
 
+    if (unlikely(addr < PAGE_SIZE)) return ERR_OUT_OF_MEMORY;
     if (unlikely(tail >= MAX_USER_VIRT_ADDR)) return ERR_OUT_OF_MEMORY;
 
     mutex_lock(&vmm->lock);
@@ -481,6 +493,7 @@ int vmm_add(uintptr_t *addr, size_t size, int flags, vm_object_t *object, size_t
     }
 
     if (likely(error == 0)) {
+        if (object) pos.head |= offset & PAGE_MASK;
         *addr = pos.head;
     } else if (reserve) {
         unreserve_pages(size >> PAGE_SHIFT);
@@ -489,6 +502,10 @@ int vmm_add(uintptr_t *addr, size_t size, int flags, vm_object_t *object, size_t
 out:
     mutex_unlock(&vmm->lock);
     return error;
+}
+
+static vm_region_t *next_region(vm_region_t *prev) {
+    return node_to_obj(vm_region_t, node, prev->node.next);
 }
 
 int vmm_alter(uintptr_t addr, size_t size, int flags) {
@@ -506,83 +523,142 @@ int vmm_alter(uintptr_t addr, size_t size, int flags) {
     mutex_lock(&vmm->lock);
 
     vm_region_t *prev = find_highest_below(vmm, addr);
-    vm_region_t *cur = node_to_obj(vm_region_t, node, prev ? prev->node.next : vmm->reg_list.first);
+    vm_region_t *first = node_to_obj(vm_region_t, node, prev ? prev->node.next : vmm->reg_list.first);
+    vm_region_t *last = NULL;
+    vm_region_t *next = first;
     int error = 0;
 
-    while (cur != NULL && cur->head <= tail) {
-        vm_region_t *next = node_to_obj(vm_region_t, node, cur->node.next);
+    // find boundaries
+    size_t tot_extra_pages = 0;
 
-        if (addr < cur->head) {
-            vm_region_t *hpart = vmalloc(sizeof(*hpart));
-            if (unlikely(!hpart)) {
-                error = ERR_OUT_OF_MEMORY;
-                break;
-            }
-
-            hpart->head = cur->head;
-            hpart->tail = addr - 1;
-            hpart->flags = cur->flags;
-            hpart->object = cur->object;
-            hpart->offset = cur->offset;
-
-            if (hpart->object) vmo_ref(hpart->object);
-
-            insert_before(vmm, cur, hpart);
-
-            cur->head = addr;
+    while (next != NULL && next->head <= tail) {
+        if (next->object && !next->object->ops->allow_flags(next->object, flags)) {
+            mutex_unlock(&vmm->lock);
+            return ERR_ACCESS_DENIED;
         }
 
-        if (tail < cur->tail) {
-            vm_region_t *tpart = vmalloc(sizeof(*tpart));
-            if (unlikely(!tpart)) {
-                error = ERR_OUT_OF_MEMORY;
-                break;
-            }
+        int new_flags = (next->flags & ~VMM_PFLAG) | flags;
+        size_t size = next->tail - next->head + 1;
 
-            tpart->head = tail + 1;
-            tpart->tail = cur->tail;
-            tpart->flags = cur->flags;
-            tpart->object = cur->object;
-            tpart->offset = cur->offset;
-
-            if (tpart->object) vmo_ref(tpart->object);
-
-            insert_before(vmm, next, tpart);
-
-            next = tpart;
-            cur->tail = tail;
-        }
-
-        if (cur->object && !cur->object->ops->allow_flags(cur->object, flags)) {
-            error = ERR_ACCESS_DENIED;
-            break;
-        }
-
-        int new_flags = (cur->flags & ~VMM_PFLAG) | flags;
-        size_t size = cur->tail - cur->head + 1;
-
-        if (cur->flags & VMM_PFLAG) {
-            if (flags & VMM_PFLAG) {
-                remap(cur->head, size, get_pmap_flags(flags));
-            } else {
-                unmap(cur->head, size);
-                if (requires_reservation(cur->flags, cur->object)) unreserve_pages(size >> PAGE_SHIFT);
-            }
-        } else if (flags & VMM_PFLAG) {
-            bool reserve = requires_reservation(new_flags, cur->object);
+        if ((next->flags & VMM_PFLAG) == 0 && (new_flags & VMM_PFLAG) != 0) {
+            bool reserve = requires_reservation(new_flags, next->object);
             if (reserve && unlikely(!reserve_pages(size >> PAGE_SHIFT))) {
-                error = ERR_OUT_OF_MEMORY;
-                break;
+                unreserve_pages(tot_extra_pages);
+                mutex_unlock(&vmm->lock);
+                return ERR_OUT_OF_MEMORY;
             }
 
-            error = prepare_map(cur->head, size);
+            tot_extra_pages += size >> PAGE_SHIFT;
+
+            error = prepare_map(next->head, size);
             if (unlikely(error)) {
-                if (reserve) unreserve_pages(size >> PAGE_SHIFT);
-                break;
+                unreserve_pages(tot_extra_pages);
+                mutex_unlock(&vmm->lock);
+                return ERR_OUT_OF_MEMORY;
             }
         }
 
-        cur->flags = new_flags;
+        last = next;
+        next = next_region(next);
+    }
+
+    if (first != next) {
+        ASSERT(first != NULL);
+        ASSERT(last != NULL);
+
+        // split any regions that need to be split
+        bool first_needs_split = first->head < addr;
+        bool last_needs_split = last->tail > tail;
+
+        if (first_needs_split && last_needs_split && first == last) {
+            vm_region_t *new_regions = vmalloc(sizeof(*new_regions) * 2);
+            if (unlikely(!new_regions)) {
+                unreserve_pages(tot_extra_pages);
+                mutex_unlock(&vmm->lock);
+                return ERR_OUT_OF_MEMORY;
+            }
+
+            new_regions[0].head = addr;
+            new_regions[0].tail = tail;
+            new_regions[0].flags = first->flags;
+            new_regions[0].object = first->object;
+            new_regions[0].offset = first->offset;
+            insert_before(vmm, next_region(first), &new_regions[0]);
+
+            new_regions[1].head = tail + 1;
+            new_regions[1].tail = first->tail;
+            new_regions[1].flags = first->flags;
+            new_regions[1].object = first->object;
+            new_regions[1].offset = first->offset;
+            insert_before(vmm, next_region(&new_regions[0]), &new_regions[1]);
+
+            if (first->object) {
+                vmo_ref(first->object);
+                vmo_ref(first->object);
+            }
+
+            first->tail = addr - 1;
+        } else if (first_needs_split || last_needs_split) {
+            vm_region_t *new_regions = vmalloc(sizeof(*new_regions) * (!!first_needs_split + !!last_needs_split));
+            if (unlikely(!new_regions)) {
+                unreserve_pages(tot_extra_pages);
+                mutex_unlock(&vmm->lock);
+                return ERR_OUT_OF_MEMORY;
+            }
+
+            if (first_needs_split) {
+                new_regions->head = addr;
+                new_regions->tail = first->tail;
+                new_regions->flags = first->flags;
+                new_regions->object = first->object;
+                new_regions->offset = first->offset;
+                if (new_regions->object) vmo_ref(new_regions->object);
+                insert_before(vmm, next_region(first), new_regions);
+
+                first->tail = addr - 1;
+
+                new_regions++;
+            }
+
+            if (last_needs_split) {
+                new_regions->head = last->head;
+                new_regions->tail = tail;
+                new_regions->flags = last->flags;
+                new_regions->object = last->object;
+                new_regions->offset = last->offset;
+                if (new_regions->object) vmo_ref(new_regions->object);
+                insert_before(vmm, last, new_regions);
+
+                tree_rem(vmm, last);
+                last->head = tail + 1;
+                tree_add(vmm, last);
+            }
+        }
+
+        // do the operation
+        vm_region_t *cur = prev;
+
+        while (cur != NULL && cur->head <= tail) {
+            vm_region_t *next = node_to_obj(vm_region_t, node, cur->node.next);
+
+            ASSERT(cur->head >= addr);
+            ASSERT(cur->tail <= tail);
+
+            int new_flags = (cur->flags & ~VMM_PFLAG) | flags;
+            size_t size = cur->tail - cur->head + 1;
+
+            if (cur->flags & VMM_PFLAG) {
+                if (flags & VMM_PFLAG) {
+                    remap(cur->head, size, get_pmap_flags(flags));
+                } else {
+                    unmap(cur->head, size);
+                    if (requires_reservation(cur->flags, cur->object)) unreserve_pages(size >> PAGE_SHIFT);
+                }
+            }
+
+            cur->flags = new_flags;
+            cur = next;
+        }
     }
 
     mutex_unlock(&vmm->lock);

@@ -1,6 +1,5 @@
 #include "sys/syscall.h"
 #include "asm/msr.h"
-#include "compiler.h"
 #include "cpu/cpu.h"
 #include "cpu/gdt.h"
 #include "cpu/idt.h"
@@ -8,8 +7,11 @@
 #include "hydrogen/stat.h"
 #include "mem/pmap.h"
 #include "mem/vheap.h"
+#include "proxima/compiler.h"
+#include "sched/proc.h"
 #include "sys/sysvecs.h"
 #include "sys/vdso.h"
+#include "util/panic.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -51,7 +53,7 @@ static syscall_result_t do_syscall(
         size_t a5
 ) {
     switch (num) {
-    case SYS_EXIT: sys_exit();
+    case SYS_EXIT: hydrogen_exit();
     case SYS_MMAP: return sys_mmap(a0, a1, a2, a3, a4);
     case SYS_MPROTECT: return sys_mprotect(a0, a1, a2);
     case SYS_MUNMAP: return sys_munmap(a0, a1);
@@ -85,15 +87,16 @@ static syscall_result_t do_syscall(
     case SYS_WRITE: return sys_write(a0, (const void *)a1, a2);
     case SYS_PREAD: return sys_pread(a0, (void *)a1, a2, a3);
     case SYS_PWRITE: return sys_pwrite(a0, (const void *)a1, a2, a3);
+    case SYS_EXECVE: return sys_execve(a0, (const void *)a1, a2, (const sys_execve_args_t *)a3);
+    case SYS_FEXECVE: return sys_fexecve(a0, (const sys_execve_args_t *)a1);
     default: return SYSCALL_ERR(ERR_NOT_IMPLEMENTED); break;
     }
 }
 
 void syscall_dispatch(idt_frame_t *frame) {
     if (!is_address_in_vdso(frame->rip)) {
-        frame->rax = 0;
-        frame->rdx = ERR_NOT_IMPLEMENTED;
-        return;
+        // TODO: Make this send a signal instead of panicking
+        panic("syscalls are not allowed from outside vdso");
     }
 
     enable_irq();
@@ -132,4 +135,15 @@ int copy_to_heap(void **buffer, const void *src, size_t size) {
 
     *buffer = buf;
     return 0;
+}
+
+int fd_to_file_opt(int fd, file_t **out) {
+    if (fd < 0) {
+        *out = NULL;
+        return 0;
+    }
+
+    file_t *file = get_file_description(current_proc, fd, false);
+    *out = file;
+    return likely(file) ? 0 : ERR_INVALID_HANDLE;
 }

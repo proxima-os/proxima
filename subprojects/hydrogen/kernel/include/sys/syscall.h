@@ -1,6 +1,7 @@
 #ifndef HYDROGEN_SYS_SYSCALL_H
 #define HYDROGEN_SYS_SYSCALL_H
 
+#include "fs/vfs.h"
 #include "hydrogen/stat.h"
 #include "hydrogen/vfs.h"
 #include "sys/sysvecs.h"
@@ -19,8 +20,9 @@ void syscall_init(void);
 int verify_user_ptr(const void *ptr, size_t len);
 int verify_addr(uintptr_t addr);
 int copy_to_heap(void **buffer, const void *src, size_t size);
+int fd_to_file_opt(int fd, file_t **out);
 
-_Noreturn void sys_exit(void);
+_Noreturn void hydrogen_exit(void);
 
 syscall_result_t sys_mmap(uintptr_t addr, size_t size, int flags, int fd, size_t offset);
 syscall_result_t sys_mprotect(uintptr_t addr, size_t size, int flags);
@@ -61,5 +63,8 @@ syscall_result_t sys_read(int fd, void *buf, size_t size);
 syscall_result_t sys_write(int fd, const void *buf, size_t size);
 syscall_result_t sys_pread(int fd, void *buf, size_t size, uint64_t position);
 syscall_result_t sys_pwrite(int fd, const void *buf, size_t size, uint64_t position);
+
+syscall_result_t sys_execve(int fd, const void *path, size_t path_len, const sys_execve_args_t *args);
+syscall_result_t sys_fexecve(int fd, const sys_execve_args_t *args);
 
 #endif // HYDROGEN_SYS_SYSCALL_H

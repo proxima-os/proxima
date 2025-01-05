@@ -15,4 +15,6 @@ cpu = 'x86_64'
 endian = 'little'
 
 [built-in options]
+c_link_args = ['-Wl,--dynamic-linker=/lib/ld64.so.1', '-Wl,--hash-style=sysv']
+cpp_link_args = c_link_args
 libdir = 'lib'

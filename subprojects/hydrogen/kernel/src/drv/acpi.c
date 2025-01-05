@@ -2,7 +2,7 @@
 #include "asm/idle.h"
 #include "asm/irq.h"
 #include "asm/pio.h"
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "cpu/cpu.h"
 #include "drv/pci.h"
 #include "drv/pic.h"

@@ -1,6 +1,6 @@
 #include "sched/mutex.h"
 #include "asm/irq.h"
-#include "compiler.h"
+#include "proxima/compiler.h"
 #include "cpu/cpu.h"
 #include "sched/sched.h"
 #include "util/list.h"

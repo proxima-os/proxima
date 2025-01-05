@@ -1,9 +1,9 @@
 #include "cpu/exc.h"
 #include "asm/cr.h"
 #include "asm/idle.h"
-#include "compiler.h"
 #include "cpu/idt.h"
 #include "cpu/irqvec.h"
+#include "proxima/compiler.h"
 #include "util/panic.h"
 #include <stdbool.h>
 
