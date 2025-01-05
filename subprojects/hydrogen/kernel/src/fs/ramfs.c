@@ -122,23 +122,21 @@ static int ramfs_vnode_stat(vnode_t *ptr, hydrogen_stat_t *out) {
     return 0;
 }
 
-static int ramfs_vnode_utimes(vnode_t *ptr, int64_t atime, int64_t btime, int64_t mtime, ident_t *ident) {
+static int ramfs_vnode_utimes(vnode_t *ptr, int64_t atime, int64_t mtime, ident_t *ident) {
     ramfs_vnode_t *self = (ramfs_vnode_t *)ptr;
     int64_t cur = get_timestamp();
 
     if (self->uid != ident->uid) {
-        if ((atime != INT64_MIN && atime != INT64_MAX) || (btime != INT64_MIN && btime != INT64_MAX) ||
-            (mtime != INT64_MIN && mtime != INT64_MAX) || !ramfs_vnode_access(ptr, S_IWOTH, ident)) {
+        if ((atime != INT64_MIN && atime != INT64_MAX) || (mtime != INT64_MIN && mtime != INT64_MAX) ||
+            !ramfs_vnode_access(ptr, S_IWOTH, ident)) {
             return ERR_ACCESS_DENIED;
         }
     }
 
     if (atime == INT64_MAX) atime = cur;
-    if (btime == INT64_MAX) btime = cur;
     if (mtime == INT64_MAX) mtime = cur;
 
     if (atime != INT64_MIN) self->atime = atime;
-    if (btime != INT64_MIN) self->btime = btime;
     if (mtime != INT64_MIN) self->mtime = mtime;
 
     self->ctime = cur;
@@ -230,10 +228,16 @@ static int ramfs_vnode_reg_read(vnode_t *ptr, void *buffer, size_t *size, uint64
 
         page_t *page = xarray_get(&self->reg.pages, index);
 
+        int error;
         if (page) {
-            memcpy_user(buffer, page_to_virt(page) + offset, cur);
+            error = memcpy_user(buffer, page_to_virt(page) + offset, cur);
         } else {
-            memset_user(buffer, 0, cur);
+            error = memset_user(buffer, 0, cur);
+        }
+
+        if (unlikely(error)) {
+            if (total != 0) break;
+            return error;
         }
 
         buffer += cur;
@@ -242,7 +246,7 @@ static int ramfs_vnode_reg_read(vnode_t *ptr, void *buffer, size_t *size, uint64
         position += cur;
     }
 
-    self->atime = get_timestamp();
+    if (total != 0) self->atime = get_timestamp();
 
     *size = total;
     return 0;
@@ -263,23 +267,20 @@ static int ramfs_vnode_reg_write(vnode_t *ptr, const void *buffer, size_t *size,
 
         page_t *page = xarray_get(&self->reg.pages, index);
 
-        if (page != NULL) {
-            memcpy_user(page_to_virt(page) + offset, buffer, cur);
-        } else {
+        if (page == NULL) {
             page = alloc_page_now();
             if (unlikely(!page)) {
                 error = ERR_DISK_FULL;
                 break;
             }
 
-            void *ptr = page_to_virt(page);
-            memset(ptr, 0, offset);
-            memcpy_user(ptr + offset, buffer, cur);
-            if (cur != max) memset(ptr + offset + cur, 0, max - cur);
-
+            memset(page_to_virt(page), 0, PAGE_SIZE);
             xarray_put(&self->reg.pages, index, page);
             self->blocks += 1;
         }
+
+        error = memcpy_user(page_to_virt(page) + offset, buffer, cur);
+        if (unlikely(error)) break;
 
         buffer += cur;
         remaining -= cur;
@@ -291,6 +292,7 @@ static int ramfs_vnode_reg_write(vnode_t *ptr, const void *buffer, size_t *size,
         if (position > self->size) self->size = position;
         self->ctime = get_timestamp();
         self->mtime = self->ctime;
+        error = 0;
     }
 
     *size = total;
@@ -395,16 +397,22 @@ static ramfs_dirent_t *next_dirent(ramfs_vnode_t *vnode, ramfs_dirent_t *prev) {
     return node_to_obj(ramfs_dirent_t, iter_node, prev ? prev->iter_node.next : vnode->dir.iter_list.first);
 }
 
-static size_t emit_dirent(void *buffer, size_t rem, const void *name, size_t length, vnode_t *vnode, uint64_t pos) {
+static int emit_dirent(void *buffer, size_t rem, const void *name, size_t length, vnode_t *vnode, uint64_t pos, size_t *len) {
+    *len = 0;
+
     size_t needed_length = offsetof(hydrogen_dirent_t, name) + length;
     needed_length = (needed_length + (_Alignof(hydrogen_dirent_t) - 1)) & ~(_Alignof(hydrogen_dirent_t) - 1);
     if (needed_length > rem) return 0;
 
     hydrogen_dirent_t entry = {.id = vnode->id, .pos = pos, .length = length, .kind = type_to_dirent_kind(vnode->type)};
-    memcpy_user(buffer, &entry, offsetof(hydrogen_dirent_t, name));
-    memcpy_user(buffer + offsetof(hydrogen_dirent_t, name), name, length);
 
-    return needed_length;
+    int error = memcpy_user(buffer, &entry, offsetof(hydrogen_dirent_t, name));
+    if (unlikely(error)) return error;
+
+    error = memcpy_user(buffer + offsetof(hydrogen_dirent_t, name), name, length);
+    if (unlikely(error)) return error;
+
+    return 0;
 }
 
 // you must own dir->base.lock
@@ -442,12 +450,14 @@ static int emit_single(ramfs_open_dir_t *self, ramfs_vnode_t *dir, void **buffer
             if (unlikely(error)) return error;
         }
 
-        len = emit_dirent(*buffer, *rem, "..", self->head_state + 1, vnode, self->head_state);
-        if (len != 0) self->head_state += 1;
-
+        int error = emit_dirent(*buffer, *rem, "..", self->head_state + 1, vnode, self->head_state, &len);
         vnode_deref(vnode);
+        if (unlikely(error)) return error;
+
+        if (len != 0) self->head_state += 1;
     } else if (entry != NULL) {
-        len = emit_dirent(*buffer, *rem, entry->name, entry->length, &entry->vnode->base, entry->id);
+        int error = emit_dirent(*buffer, *rem, entry->name, entry->length, &entry->vnode->base, entry->id, &len);
+        if (unlikely(error)) return error;
 
         if (len != 0) {
             if (self->prev) ramfs_dirent_deref(self->prev);
@@ -462,7 +472,7 @@ static int emit_single(ramfs_open_dir_t *self, ramfs_vnode_t *dir, void **buffer
     *rem -= len;
     *tot += len;
     *eof = self->head_state == 2 && entry == NULL;
-    return len ? 0 : ERR_OVERFLOW;
+    return 0;
 }
 
 static int ramfs_open_dir_read(file_t *ptr, void *buffer, size_t *size) {
@@ -477,18 +487,18 @@ static int ramfs_open_dir_read(file_t *ptr, void *buffer, size_t *size) {
 
     do {
         error = emit_single(self, vnode, &buffer, size, &tot, &eof);
-        if (error) break;
+        if (unlikely(error)) {
+            mutex_unlock(&vnode->base.lock);
+            return error;
+        }
     } while (!eof);
 
-    if (tot != 0) vnode->atime = read_time();
+    if (tot != 0) vnode->atime = get_timestamp();
 
     mutex_unlock(&vnode->base.lock);
 
     *size = tot;
-
-    if (unlikely(error != 0 && error != ERR_OVERFLOW)) return error;
-    else if (eof) return 0;
-    else return ERR_OVERFLOW;
+    return tot != 0 || eof ? 0 : ERR_OVERFLOW;
 }
 
 static int ramfs_open_dir_seek(file_t *ptr, uint64_t *offset, hydrogen_whence_t whence) {

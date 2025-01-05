@@ -18,13 +18,13 @@ typedef struct {
     void (*free)(file_t *self);
     // if these are null, fall back to the equivalent op on the vnode
     int (*stat)(file_t *self, hydrogen_stat_t *out);
-    int (*utimes)(file_t *self, int64_t atime, int64_t btime, int64_t mtime, ident_t *ident);
+    int (*utimes)(file_t *self, int64_t atime, int64_t mtime, ident_t *ident);
     int (*chown)(file_t *self, uint32_t uid, uint32_t gid, ident_t *ident);
     int (*chmod)(file_t *self, uint32_t mode, ident_t *ident);
-    // for directories: read as many `hydrogen_dirent_t` structures into `buffer` as possible. return `0` if the last
-    //                  entry has been read, and `ERR_OVERFLOW` otherwise.
+    // for directories: read as many `hydrogen_dirent_t` structures into `buffer` as possible. return ERR_OVERFLOW if
+    //                  it can't even fit one
     // for everything else: read as many bytes into `buffer` as possible
-    // the number of bytes actually read is always returned in size, even if an error occurred
+    // if only partially failed, return success first and an error on the next call (which should be a full failure)
     int (*read)(file_t *self, void *buffer, size_t *size);
     // for directories: unit is filesystem-defined, but when offset is 0 it must work as expected for the given whence
     // for everything else: unit is bytes
@@ -65,13 +65,12 @@ typedef struct {
     // e.g. if checking for write and execute access it'll be S_IWOTH | S_IXOTH
     bool (*access)(vnode_t *self, uint32_t mask, ident_t *ident);
     int (*stat)(vnode_t *self, hydrogen_stat_t *out);
-    int (*utimes)(vnode_t *self, int64_t atime, int64_t btime, int64_t mtime, ident_t *ident);
+    int (*utimes)(vnode_t *self, int64_t atime, int64_t mtime, ident_t *ident);
     int (*chown)(vnode_t *self, uint32_t uid, uint32_t gid, ident_t *ident);
     int (*chmod)(vnode_t *self, uint32_t mode, ident_t *ident);
     union {
         struct {
             int (*open)(vnode_t *self, file_t **out);
-            // must not return ERR_OVERFLOW
             int (*lookup)(vnode_t *self, vnode_t **out, const void *name, size_t length);
             // if this returns 0 or ERR_ALREADY_EXISTS, out is set to the vnode
             int (*mknod)(vnode_t *self, vnode_t **out, const void *name, size_t length, uint32_t mode, ident_t *ident);
@@ -125,59 +124,35 @@ struct vnode {
     vfs_t *mounted;
 };
 
-int vfs_open(file_t *rel, file_t **out, const void *path, size_t path_len, int flags, uint32_t mode);
+uint32_t vfs_umask(uint32_t mask);
 
+int vfs_open(file_t *rel, file_t **out, const void *path, size_t path_len, int flags, uint32_t mode);
 int vfs_reopen(file_t *file, file_t **out, int flags);
 
 int vfs_mknod(file_t *rel, const void *path, size_t path_len, uint32_t mode);
-
 int vfs_symlink(file_t *rel, const void *path, size_t path_len, const void *target, size_t target_len);
-
 int vfs_link(file_t *rel, const void *path, size_t path_len, file_t *trel, const void *tpath, size_t tlen, bool follow);
-
 int vfs_unlink(file_t *rel, const void *path, size_t path_len, bool dir);
-
 int vfs_rename(file_t *rel, const void *path, size_t path_len, file_t *trel, const void *tpath, size_t tlen);
 
-int vfs_truncate(file_t *rel, const void *path, size_t path_len, uint64_t size);
-
-int vfs_ftruncate(file_t *rel, uint64_t size);
-
+int vfs_readlink(file_t *rel, const void *path, size_t path_len, void *buf, size_t *buf_len);
 int vfs_stat(file_t *rel, const void *path, size_t path_len, hydrogen_stat_t *out, bool follow);
-
 int vfs_fstat(file_t *file, hydrogen_stat_t *out);
 
-int vfs_readlink(file_t *rel, const void *path, size_t path_len, void *buf, size_t *buf_len);
+int vfs_truncate(file_t *rel, const void *path, size_t path_len, uint64_t size);
+int vfs_ftruncate(file_t *rel, uint64_t size);
+int vfs_utimes(file_t *rel, const void *path, size_t path_len, int64_t atime, int64_t mtime, bool follow);
+int vfs_futimes(file_t *file, int64_t atime, int64_t mtime);
+int vfs_chown(file_t *rel, const void *path, size_t path_len, uint32_t uid, uint32_t gid, bool follow);
+int vfs_fchown(file_t *file, uint32_t uid, uint32_t gid);
+int vfs_chmod(file_t *rel, const void *path, size_t path_len, uint32_t mode, bool follow);
+int vfs_fchmod(file_t *file, uint32_t mode);
 
 int vfs_seek(file_t *file, uint64_t *offset, hydrogen_whence_t whence);
-
 int vfs_read(file_t *file, void *buffer, size_t *size);
-
 int vfs_write(file_t *file, const void *buffer, size_t *size);
-
 int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position);
-
 int vfs_pwrite(file_t *file, const void *buffer, size_t *size, uint64_t position);
-
-int vfs_utimes(
-        file_t *rel,
-        const void *path,
-        size_t path_len,
-        int64_t atime,
-        int64_t btime,
-        int64_t mtime,
-        bool follow
-);
-
-int vfs_futimes(file_t *file, int64_t atime, int64_t btime, int64_t mtime);
-
-int vfs_chown(file_t *rel, const void *path, size_t path_len, uint32_t uid, uint32_t gid, bool follow);
-
-int vfs_fchown(file_t *file, uint32_t uid, uint32_t gid);
-
-int vfs_chmod(file_t *rel, const void *path, size_t path_len, uint32_t mode, bool follow);
-
-int vfs_fchmod(file_t *file, uint32_t mode);
 
 uint64_t get_vfs_id(void);
 

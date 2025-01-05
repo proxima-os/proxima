@@ -50,6 +50,16 @@ static void init_process_func(UNUSED void *ctx) {
     error = vmm_add(&stack_base, PAGE_SIZE, VMM_READ | VMM_WRITE, NULL, 0);
     if (error) panic("failed to allocate user stack (%d)", error);
 
+    file_t *kcon;
+    error = create_kcon_handle(&kcon);
+    if (error) panic("failed to allocate kernel console handle (%d)", error);
+
+    int fd = alloc_fd(kcon, 0);
+    if (fd < 0) panic("failed to allocate kernel console fd (%d)", -fd);
+    file_deref(kcon);
+
+    ASSERT(fd == 0);
+
     enter_user_mode(current_proc->vdso + __vdso_start.entry, stack_base + PAGE_SIZE - 8);
 }
 

@@ -1,10 +1,16 @@
 #include "util/print.h"
 #include "asm/irq.h"
 #include "compiler.h"
+#include "fs/vfs.h"
+#include "hydrogen/error.h"
+#include "hydrogen/fcntl.h"
 #include "limine.h"
 #include "mem/kvmm.h"
 #include "mem/pmap.h"
 #include "mem/pmm.h"
+#include "mem/vheap.h"
+#include "string.h"
+#include "sys/syscall.h"
 #include "util/panic.h"
 #include "util/spinlock.h"
 #include <stdarg.h>
@@ -115,6 +121,49 @@ static void print_char(unsigned char c, UNUSED void *ctx) {
             draw_char(' ', x, term_y);
         }
     }
+}
+
+static void kcon_free(file_t *self) {
+    vmfree(self, sizeof(*self));
+}
+
+static int kcon_write(UNUSED file_t *self, const void *buffer, size_t *size) {
+    unsigned char buf[128];
+    size_t n = *size;
+
+    while (n > 0) {
+        size_t cur = n < sizeof(buf) ? n : sizeof(buf);
+        int error = memcpy_user(buf, buffer, n);
+        if (unlikely(error)) return error;
+
+        irq_state_t state = spin_lock(&term_lock);
+
+        for (size_t i = 0; i < cur; i++) {
+            print_char(buf[i], NULL);
+        }
+
+        spin_unlock(&term_lock, state);
+
+        buffer += cur;
+        n -= cur;
+    }
+
+    return 0;
+}
+
+static const file_ops_t kcon_ops = {.free = kcon_free, .write = kcon_write};
+
+int create_kcon_handle(file_t **out) {
+    file_t *file = vmalloc(sizeof(*file));
+    if (unlikely(!file)) return ERR_OUT_OF_MEMORY;
+    memset(file, 0, sizeof(*file));
+
+    file->ops = &kcon_ops;
+    file->references = 1;
+    file->mode = O_WRONLY;
+
+    *out = file;
+    return 0;
 }
 
 typedef void (*printk_func_t)(unsigned char, void *);

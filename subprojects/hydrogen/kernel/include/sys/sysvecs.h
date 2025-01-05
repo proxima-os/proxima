@@ -1,6 +1,7 @@
 #ifndef HYDROGEN_SYS_SYSVECS_H
 #define HYDROGEN_SYS_SYSVECS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef struct {
@@ -11,14 +12,53 @@ typedef struct {
     int error;
 } syscall_result_t;
 
-#define SYS_EXIT 0ul
-#define SYS_MMAP 1ul
-#define SYS_MPROTECT 2ul
-#define SYS_MUNMAP 3ul
-#define SYS_GET_FS_BASE 4ul
-#define SYS_GET_GS_BASE 5ul
-#define SYS_SET_FS_BASE 6ul
-#define SYS_SET_GS_BASE 7ul
-#define SYS_PRINT 8ul
+typedef enum {
+    SYS_EXIT,
+    SYS_MMAP,
+    SYS_MPROTECT,
+    SYS_MUNMAP,
+    SYS_GET_FS_BASE,
+    SYS_GET_GS_BASE,
+    SYS_SET_FS_BASE,
+    SYS_SET_GS_BASE,
+    SYS_UMASK,
+    SYS_OPEN,
+    SYS_REOPEN,
+    SYS_DUP,
+    SYS_CLOSE,
+    SYS_MKNOD,
+    SYS_SYMLINK,
+    SYS_LINK,
+    SYS_UNLINK,
+    SYS_RENAME,
+    SYS_READLINK,
+    SYS_STAT,
+    SYS_FSTAT,
+    SYS_TRUNCATE,
+    SYS_FTRUNCATE,
+    SYS_UTIMES,
+    SYS_FUTIMES,
+    SYS_CHOWN,
+    SYS_FCHOWN,
+    SYS_CHMOD,
+    SYS_FCHMOD,
+    SYS_SEEK,
+    SYS_READ,
+    SYS_WRITE,
+    SYS_PREAD,
+    SYS_PWRITE,
+} syscall_vector_t;
+
+typedef struct {
+    int source_rel;
+    const void *source_name;
+    size_t source_length;
+
+    int target_rel;
+    const void *target_name;
+    size_t target_length;
+
+    bool follow_symlinks;
+} sys_link_args_t;
 
 #endif // HYDROGEN_SYS_SYSVECS_H

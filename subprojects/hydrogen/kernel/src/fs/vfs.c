@@ -375,7 +375,7 @@ static int open_vnode(vnode_t *vnode, file_t **out, int flags) {
     return 0;
 }
 
-#define O_MASK (O_TRUNC | O_NOFOLLOW | O_NODIR | O_DIRECTORY | O_CREAT | O_FMASK)
+#define O_MASK (O_CLOFORK | O_CLOEXEC | O_TRUNC | O_NOFOLLOW | O_NODIR | O_DIRECTORY | O_CREAT | O_FMASK)
 #define S_MASK (S_ISUID | S_ISGID | S_ISVTX | S_IRWXUGO)
 
 static void process_umask(uint32_t *mode) {
@@ -388,6 +388,10 @@ static bool check_open_access(vnode_t *vnode, int flags, ident_t *ident) {
     if (flags & O_WRONLY) stat |= S_IWOTH;
     if (flags & O_EXEC) stat |= S_IXOTH;
     return stat == 0 || vnode->ops->access(vnode, stat, ident);
+}
+
+uint32_t vfs_umask(uint32_t mask) {
+    return __atomic_exchange_n(&current_proc->umask, mask & S_IRWXUGO, __ATOMIC_ACQ_REL);
 }
 
 int vfs_open(file_t *rel, file_t **out, const void *path, size_t path_len, int flags, uint32_t mode) {
@@ -869,11 +873,11 @@ int vfs_readlink(file_t *rel, const void *path, size_t path_len, void *buf, size
 
     size_t copy_len = *buf_len;
     if (targ_len < copy_len) copy_len = targ_len;
-    memcpy_user(buf, target, copy_len);
 
+    error = memcpy_user(buf, target, copy_len);
     vnode_deref(vnode);
     *buf_len = targ_len;
-    return 0;
+    return error;
 }
 
 int vfs_seek(file_t *file, uint64_t *offset, hydrogen_whence_t whence) {
@@ -885,6 +889,7 @@ int vfs_seek(file_t *file, uint64_t *offset, hydrogen_whence_t whence) {
 int vfs_read(file_t *file, void *buffer, size_t *size) {
     if ((file->mode & O_RDONLY) == 0) return ERR_INVALID_HANDLE;
     if (!file->ops->read) return ERR_NOT_IMPLEMENTED;
+    if (*size == 0) return 0;
 
     return file->ops->read(file, buffer, size);
 }
@@ -892,6 +897,7 @@ int vfs_read(file_t *file, void *buffer, size_t *size) {
 int vfs_write(file_t *file, const void *buffer, size_t *size) {
     if ((file->mode & O_WRONLY) == 0) return ERR_INVALID_HANDLE;
     if (!file->ops->write) return ERR_NOT_IMPLEMENTED;
+    if (*size == 0) return 0;
 
     return file->ops->write(file, buffer, size);
 }
@@ -899,6 +905,7 @@ int vfs_write(file_t *file, const void *buffer, size_t *size) {
 int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position) {
     if ((file->mode & O_RDONLY) == 0) return ERR_INVALID_HANDLE;
     if (!file->ops->pread) return ERR_NOT_IMPLEMENTED;
+    if (*size == 0) return 0;
 
     return file->ops->pread(file, buffer, size, position);
 }
@@ -906,20 +913,13 @@ int vfs_pread(file_t *file, void *buffer, size_t *size, uint64_t position) {
 int vfs_pwrite(file_t *file, const void *buffer, size_t *size, uint64_t position) {
     if ((file->mode & O_WRONLY) == 0) return ERR_INVALID_HANDLE;
     if (!file->ops->pwrite) return ERR_NOT_IMPLEMENTED;
+    if (*size == 0) return 0;
 
     return file->ops->pwrite(file, buffer, size, position);
 }
 
-int vfs_utimes(
-        file_t *rel,
-        const void *path,
-        size_t path_len,
-        int64_t atime,
-        int64_t btime,
-        int64_t mtime,
-        bool follow
-) {
-    if (atime == INT64_MIN && btime == INT64_MIN && mtime == INT64_MIN) return 0;
+int vfs_utimes(file_t *rel, const void *path, size_t path_len, int64_t atime, int64_t mtime, bool follow) {
+    if (atime == INT64_MIN && mtime == INT64_MIN) return 0;
 
     ident_t *ident = get_identity();
     vnode_t *vnode;
@@ -929,26 +929,26 @@ int vfs_utimes(
         return error;
     }
 
-    error = vnode->ops->utimes(vnode, atime, btime, mtime, ident);
+    error = vnode->ops->utimes(vnode, atime, mtime, ident);
     mutex_unlock(&vnode->lock);
     vnode_deref(vnode);
     return error;
 }
 
-int vfs_futimes(file_t *file, int64_t atime, int64_t btime, int64_t mtime) {
-    if (atime == INT64_MAX && btime == INT64_MIN && mtime == INT64_MIN) return 0;
+int vfs_futimes(file_t *file, int64_t atime, int64_t mtime) {
+    if (atime == INT64_MAX && mtime == INT64_MIN) return 0;
 
     ident_t *ident = get_identity();
     int error;
 
     if (file->ops->utimes) {
-        error = file->ops->utimes(file, atime, btime, mtime, ident);
+        error = file->ops->utimes(file, atime, mtime, ident);
     } else {
         vnode_t *vnode = file->vnode;
 
         if (vnode) {
             mutex_lock(&vnode->lock);
-            error = vnode->ops->utimes(vnode, atime, btime, mtime, ident);
+            error = vnode->ops->utimes(vnode, atime, mtime, ident);
             mutex_unlock(&vnode->lock);
         } else {
             error = ERR_NOT_IMPLEMENTED;

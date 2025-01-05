@@ -149,8 +149,11 @@ static int extract_record(file_t *dest, void *ptr, size_t *size, size_t *errors)
                     while (total > 0) {
                         size_t cur = total;
                         error = vfs_write(file, buf, &cur);
-                        if (error) printk("initrd: %S: write failed (%d)\n", path, plen, error);
-                        if (cur == 0) break;
+                        if (error) {
+                            printk("initrd: %S: write failed (%d)\n", path, plen, error);
+                            *errors += 1;
+                            break;
+                        }
 
                         buf += cur;
                         total -= cur;

@@ -1,10 +1,13 @@
 #ifndef HYDROGEN_UTIL_PRINT_H
 #define HYDROGEN_UTIL_PRINT_H
 
+#include "fs/vfs.h"
 #include <stdarg.h>
 #include <stddef.h>
 
 void init_print(void);
+
+int create_kcon_handle(file_t **out);
 
 void map_print(void);
 

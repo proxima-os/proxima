@@ -11,6 +11,7 @@
 #include "util/list.h"
 #include "util/panic.h"
 #include "util/spinlock.h"
+#include <limits.h>
 
 proc_t kernel_proc = {.references = 1};
 
@@ -192,4 +193,78 @@ void set_root(vnode_t *vnode) {
     spin_unlock(&current_proc->lock, state);
 
     if (old) vnode_deref(old);
+}
+
+file_t *get_file_description(proc_t *proc, int fd, bool locked) {
+    if (fd < 0) return NULL;
+
+    if (!locked) mutex_lock(&proc->fds_lock);
+
+    file_t *file = fd < proc->fd_capacity ? proc->fds[fd].file : NULL;
+    if (file) file_ref(file);
+
+    if (!locked) mutex_unlock(&proc->fds_lock);
+    return file;
+}
+
+int get_free_fd(proc_t *proc, int min) {
+    if (min < proc->fd_search_min) min = proc->fd_search_min;
+
+    while (min < proc->fd_capacity) {
+        if (proc->fds[min].file == NULL) break;
+        min += 1;
+    }
+
+    return min;
+}
+
+int assign_fd(proc_t *proc, int fd, file_t *description, int flags) {
+    if (fd == INT_MAX) return ERR_NO_MORE_HANDLES;
+
+    long cap = proc->fd_capacity;
+    while (cap <= fd) {
+        if (cap != 0) cap += cap / 2;
+        else cap = 8;
+    }
+
+    if (cap != proc->fd_capacity) {
+        size_t old_size = proc->fd_capacity * sizeof(*proc->fds);
+        size_t new_size = cap * sizeof(*proc->fds);
+
+        file_descriptor_t *buf = vmrealloc(proc->fds, old_size, new_size);
+        if (!buf) return ERR_OUT_OF_MEMORY;
+        memset(buf + old_size, 0, new_size - old_size);
+
+        proc->fds = buf;
+        proc->fd_capacity = cap;
+    }
+
+    ASSERT(proc->fds[fd].file == NULL);
+
+    proc->fds[fd].file = description;
+    proc->fds[fd].flags = flags;
+    file_ref(description);
+
+    if (fd == proc->fd_search_min) proc->fd_search_min += 1;
+    return 0;
+}
+
+file_t *remove_fd(proc_t *proc, int fd) {
+    if (fd >= proc->fd_capacity) return NULL;
+
+    file_t *file = proc->fds[fd].file;
+    proc->fds[fd].file = NULL;
+    if (fd < proc->fd_search_min) proc->fd_search_min = fd;
+
+    return file;
+}
+
+int alloc_fd(file_t *description, int flags) {
+    mutex_lock(&current_proc->fds_lock);
+
+    int fd = get_free_fd(current_proc, 0);
+    int error = assign_fd(current_proc, fd, description, flags);
+
+    mutex_unlock(&current_proc->fds_lock);
+    return error == 0 ? fd : -error;
 }

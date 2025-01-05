@@ -62,3 +62,49 @@ syscall_entry:
     swapgs
     sysretq
 .size syscall_entry, . - syscall_entry
+
+.balign 16
+.globl normal_memcpy_user
+.type normal_memcpy_user, @function
+normal_memcpy_user:
+    mov %rdx, %rcx
+    rep movsb
+    xor %eax, %eax
+    ret
+.size normal_memcpy_user, . - normal_memcpy_user
+
+.balign 16
+.globl normal_memset_user
+.type normal_memset_user, @function
+normal_memset_user:
+    mov %rsi, %rax
+    mov %rdx, %rcx
+    rep stosb
+    xor %eax, %eax
+    ret
+.size normal_memset_user, . - normal_memset_user
+
+.balign 16
+.globl smap_memcpy_user
+.type smap_memcpy_user, @function
+smap_memcpy_user:
+    mov %rdx, %rcx
+    stac
+    rep movsb
+    clac
+    xor %eax, %eax
+    ret
+.size smap_memcpy_user, . - smap_memcpy_user
+
+.balign 16
+.globl smap_memset_user
+.type smap_memset_user, @function
+smap_memset_user:
+    mov %rsi, %rax
+    mov %rdx, %rcx
+    stac
+    rep stosb
+    clac
+    xor %eax, %eax
+    ret
+.size smap_memset_user, . - smap_memset_user

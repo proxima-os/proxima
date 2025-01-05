@@ -15,5 +15,10 @@
 #define O_EXCL (1u << 19)
 #define O_NOFOLLOW (1u << 20)
 #define O_TRUNC (1u << 21)
+#define O_CLOEXEC (1u << 22)
+#define O_CLOFORK (1u << 23)
+
+#define FD_CLOEXEC (1u << 0)
+#define FD_CLOFORK (1u << 1)
 
 #endif // HYDROGEN_FCNTL_H
