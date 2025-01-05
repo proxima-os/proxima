@@ -2,6 +2,7 @@
 #include "asm/msr.h"
 #include "asm/tables.h"
 #include "compiler.h"
+#include "cpu/cpu.h"
 #include "cpu/gdt.h"
 #include "util/panic.h"
 #include <stdint.h>
@@ -63,6 +64,8 @@ void paranoid_exit(bool swapped) {
 }
 
 void idt_dispatch(idt_frame_t *frame) {
+    if (smap_supported) asm("clac");
+
     idt_handler_t handler = handlers[frame->vector];
     if (handler) handler(frame);
 }
