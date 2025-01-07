@@ -18,22 +18,12 @@ jobs:
         submodules: recursive
 
     - name: Install dependencies
-      run: sudo apt-get install -y xorriso ninja-build meson llvm
-
-    - name: Configure Meson
-      run: |
-        meson setup ${{github.workspace}}/builddir ${{github.workspace}} \
-          --cross-file ${{github.workspace}}/scripts/cross/${{matrix.arch}}.txt -Dbuildtype=release -Db_lto=true \
-          -Db_lto_mode=thin -Db_ndebug=true -Dprefix=/usr
+      run: sudo apt-get install -y xorriso ninja-build meson bison flex libgmp3-dev libmpc-dev libmpfr-dev libisl-dev
 
     - name: Build
-      run: meson compile -C ${{github.workspace}}/builddir
-
-    - name: Create ISO
-      run: ${{github.workspace}}/scripts/mkiso.sh proxima.iso
-      working-directory: ${{github.workspace}}/builddir
+      run: ./build.py --target ${{matrix.arch}} iso
 
     - uses: actions/upload-artifact@v4
       with:
         name: iso-image
-        path: ${{github.workspace}}/builddir/proxima.iso
+        path: ${{github.workspace}}/build/${{matrix.arch}}/proxima.iso

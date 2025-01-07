@@ -1,0 +1,11 @@
+{
+    "version": "0.1.0",
+    "steps": {
+        "configure": {
+            "depends": [
+                "host-gcc:install"
+            ]
+        },
+        "install": {}
+    }
+}
