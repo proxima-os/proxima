@@ -18,7 +18,7 @@ jobs:
         submodules: recursive
 
     - name: Install dependencies
-      run: sudo apt-get install -y xorriso ninja-build meson bison flex libgmp3-dev libmpc-dev libmpfr-dev libisl-dev mtools
+      run: sudo apt-get install -y xorriso ninja-build meson bison flex libgmp3-dev libmpc-dev libmpfr-dev libisl-dev mtools nasm
 
     - name: Build
       run: ./build.py --target ${{matrix.arch}} iso
