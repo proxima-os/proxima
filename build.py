@@ -384,6 +384,8 @@ def build_toolchain():
     bin_dir = tools_dir / 'bin'
     cross_file = arch_build_dir / 'meson-cross.txt'
 
+    arch_build_dir.mkdir(parents=True, exist_ok=True)
+
     with cross_file.open('w') as f:
         f.write(f'''
                 [binaries]
