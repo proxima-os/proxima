@@ -1,3 +1,6 @@
 [submodule "subprojects/hydrogen"]
 	path = packages/hydrogen/src
 	url = ../hydrogen.git
+[submodule "packages/libc/src"]
+	path = packages/libc/src
+	url = ../libc.git

@@ -20,7 +20,7 @@ import urllib.request
 
 ARCHES = ['x86_64']
 BUF_SIZE = 0x10000
-TOOLCHAIN_PACKAGES = ['host-binutils', 'host-gcc', 'hydrogen']
+TOOLCHAIN_PACKAGES = ['base', 'host-binutils', 'host-gcc', 'hydrogen', 'libc']
 ISO_PACKAGES = ['host-limine']
 
 BUILDDIR = Path('build')
@@ -387,24 +387,24 @@ def build_toolchain():
     arch_build_dir.mkdir(parents=True, exist_ok=True)
 
     with cross_file.open('w') as f:
-        f.write(f'''
-                [binaries]
-                ar='{bin_dir}/{target}-ar'
-                c='{bin_dir}/{target}-gcc'
-                cpp='{bin_dir}/{target}-g++'
-                objcopy='{bin_dir}/{target}-objcopy'
-                strip='{bin_dir}/{target}-strip'
+        f.write(f'''[binaries]
+ar='{bin_dir}/{target}-ar'
+c='{bin_dir}/{target}-gcc'
+cpp='{bin_dir}/{target}-g++'
+objcopy='{bin_dir}/{target}-objcopy'
+pkg-config='{bin_dir}/pkgconf'
+strip='{bin_dir}/{target}-strip'
 
-                [host_machine]
-                system = 'proxima'
-                cpu_family = 'x86'
-                cpu = 'x86_64'
-                endian = 'little'
+[host_machine]
+system = 'proxima'
+cpu_family = 'x86'
+cpu = 'x86_64'
+endian = 'little'
 
-                [properties]
-                sys_root='{(arch_build_dir / 'sysroot').absolute()}'
-                pkg_config_libdir = '{(arch_build_dir / 'sysroot' / 'usr' / 'lib' / 'pkgconfig').absolute()}'
-                ''')
+[properties]
+sys_root='{(arch_build_dir / 'sysroot').absolute()}'
+pkg_config_libdir = '{(arch_build_dir / 'sysroot' / 'usr' / 'lib' / 'pkgconfig').absolute()}'
+''')
 
     build_env['meson_cross'] = cross_file.absolute()
 

@@ -1,0 +1,12 @@
+{
+    "version": "0.1.0",
+    "steps": {
+        "configure": {
+            "depends": [
+                "hydrogen:install",
+                "host-pkgconf:install"
+            ]
+        },
+        "install": {}
+    }
+}
