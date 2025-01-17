@@ -18,7 +18,8 @@ meson_configure() {
     src="$1"
     shift 1
 
-    meson setup "$src" . --cross-file="$meson_cross" -Dbuildtype=release -Dprefix="$prefix" "$@"
+    meson setup "$src" . --cross-file="$meson_cross" -Dbuildtype=release -Dprefix="$prefix" -Db_lto=true \
+            -Db_lto_mode=thin -Db_ndebug=true "$@"
 }
 
 meson_install() {

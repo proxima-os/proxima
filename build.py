@@ -388,12 +388,13 @@ def build_toolchain():
 
     with cross_file.open('w') as f:
         f.write(f'''[binaries]
-ar='{bin_dir}/{target}-ar'
-c='{bin_dir}/{target}-gcc'
-cpp='{bin_dir}/{target}-g++'
-objcopy='{bin_dir}/{target}-objcopy'
-pkg-config='{bin_dir}/pkgconf'
-strip='{bin_dir}/{target}-strip'
+ar = '{bin_dir}/{target}-gcc-ar'
+c = '{bin_dir}/{target}-gcc'
+cpp = '{bin_dir}/{target}-g++'
+objcopy = '{bin_dir}/{target}-objcopy'
+pkg-config = '{bin_dir}/pkgconf'
+ranlib = '{bin_dir}/{target}-ranlib'
+strip = '{bin_dir}/{target}-strip'
 
 [host_machine]
 system = 'proxima'
@@ -402,7 +403,7 @@ cpu = 'x86_64'
 endian = 'little'
 
 [properties]
-sys_root='{(arch_build_dir / 'sysroot').absolute()}'
+sys_root = '{(arch_build_dir / 'sysroot').absolute()}'
 pkg_config_libdir = '{(arch_build_dir / 'sysroot' / 'usr' / 'lib' / 'pkgconfig').absolute()}'
 ''')
 
