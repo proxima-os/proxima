@@ -3,7 +3,7 @@
     "steps": {
         "configure": {
             "depends": [
-                "host-gcc:install"
+                "host-gcc:install-compiler"
             ]
         },
         "install": {}

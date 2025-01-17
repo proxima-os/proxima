@@ -1,10 +1,5 @@
 #!/bin/sh
-set -e
-
-if test "$#" -ne 3; then
-    echo "usage: $0 SYSROOT TOOLS OUTPUT" >&2
-    exit 2
-fi
+set -ue
 
 isodir=$(mktemp -d)
 tardir=$(mktemp -d)

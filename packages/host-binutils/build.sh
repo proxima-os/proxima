@@ -1,2 +1,2 @@
 # shellcheck shell=sh
-make "-j$threads"
+make "-j$THREADS"

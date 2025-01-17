@@ -19,10 +19,17 @@
     "steps": {
         "configure": {
             "depends": [
+                "base:install",
                 "host-binutils:install"
             ]
         },
-        "build": {},
+        "build-compiler": {},
+        "install-compiler": {},
+        "build": {
+            "depends": [
+                "libc:install"
+            ]
+        },
         "install": {}
     }
 }

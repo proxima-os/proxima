@@ -39,7 +39,7 @@ cross_file: Path = None
 build_env = os.environ.copy()
 
 
-build_env['sroot'] = SCRIPTDIR.absolute()
+build_env['SROOT'] = SCRIPTDIR.absolute()
 
 
 def hash_file(path) -> str:
@@ -291,11 +291,11 @@ class Step:
 
             env = build_env.copy()
 
-            env['pkgdir'] = self.pkg.pkg_dir.absolute()
-            env['build'] = cwd.absolute()
+            env['PKGDIR'] = self.pkg.pkg_dir.absolute()
+            env['BUILD'] = cwd.absolute()
 
             for src in self.pkg.sources:
-                env[f'src_{src}'] = self.pkg.sources[src].out.absolute()
+                env[f'SRC_{src.upper()}'] = self.pkg.sources[src].out.absolute()
 
             subprocess.run(
                 [context, script.absolute()],
@@ -407,7 +407,7 @@ sys_root = '{(arch_build_dir / 'sysroot').absolute()}'
 pkg_config_libdir = '{(arch_build_dir / 'sysroot' / 'usr' / 'lib' / 'pkgconfig').absolute()}'
 ''')
 
-    build_env['meson_cross'] = cross_file.absolute()
+    build_env['MESON_CROSS'] = cross_file.absolute()
 
     asyncio.run(build_packages(TOOLCHAIN_PACKAGES))
 
@@ -478,9 +478,9 @@ def main():
     threads = args.threads
     executor = futures.ThreadPoolExecutor(max_workers=threads)
 
-    build_env['target'] = target
-    build_env['broot'] = arch_build_dir.absolute()
-    build_env['threads'] = str(threads)
+    build_env['TARGET'] = target
+    build_env['BROOT'] = arch_build_dir.absolute()
+    build_env['THREADS'] = str(threads)
 
     args.func(args)
 

@@ -1,2 +1,2 @@
 # shellcheck shell=sh
-meson_configure "$pkgdir/src"
+meson_configure "$PKGDIR/src"
