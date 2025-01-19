@@ -4,3 +4,6 @@
 [submodule "packages/libc/src"]
 	path = packages/libc/src
 	url = ../libc.git
+[submodule "packages/init/src"]
+	path = packages/init/src
+	url = ../init.git
