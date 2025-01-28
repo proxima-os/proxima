@@ -20,4 +20,5 @@ packages:
           - '-Db_ndebug=if-release'
           - '@THIS_SOURCE_DIR@'
     build:
-      - args: ['meson', 'install', '--destdir=@THIS_COLLECT_DIR@']
+      - args: ['meson', 'compile', '-j@PARALLELISM@']
+      - args: ['meson', 'install', '--no-rebuild', '--destdir=@THIS_COLLECT_DIR@']
