@@ -6,7 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: alpine:3.21.2
 
     strategy:
       matrix:
@@ -16,9 +15,9 @@ jobs:
     steps:
     - name: Install dependencies
       run: |
-        apk add bash bison flex gcc g++ git gmp-dev isl-dev m4 make meson mtools nasm ninja mpc1-dev mpfr-dev perl \
-                py3-pip tar xorriso
-        pip3 install --break-system-packages xbstrap
+        sudo apt-get install -y bison flex libgmp3-dev libisl-dev libmpc-dev libmpfr-dev meson mtools nasm ninja-build \
+                                xorriso
+        sudo pip3 install --break-system-packages xbstrap
 
     - name: Checkout
       uses: actions/checkout@v4
@@ -47,13 +46,3 @@ jobs:
       with:
         name: iso-image
         path: build/proxima.iso
-
-    - name: Upload config.log files
-      uses: actions/upload-artifact@v4
-      if: ${{ failure() }}
-      with:
-        name: logs
-        path: |
-          build/**/config.log
-          build/**/depcomp
-          ports/**/depcomp

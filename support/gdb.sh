@@ -5,5 +5,5 @@ set -ue
 
 dir="$(dirname "$(readlink -f -- "$0")")/../build"
 
-exec xbstrap -C "$dir" runtool host-binutils -- \
+exec xbstrap -C "$dir" runtool host-gdb -- \
         '@OPTION:arch@-unknown-proxima-gdb' "$@"

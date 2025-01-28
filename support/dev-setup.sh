@@ -19,9 +19,9 @@ define_options:
   arch: '${1:-"$host"}'
   build-type: debug
   lto: 'false'
-  host-gdb: enable
 EOF
 
 xbstrap init ..
 "$dir/switch.sh" hydrogen
+xbstrap install-tool host-gdb host-limine
 

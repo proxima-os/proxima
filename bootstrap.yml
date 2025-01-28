@@ -9,8 +9,6 @@ declare_options:
     default: release
   - name: lto
     default: 'true'
-  - name: host-gdb
-    default: 'disable'
 
 tasks:
   - name: make-iso
