@@ -1,0 +1,25 @@
+From f8b54efc7a44036250e145f748740eb909d067ea Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Sun, 26 Jan 2025 09:39:09 +0100
+Subject: [PATCH] Fix autoreconf failure
+
+---
+ gprofng/libcollector/configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gprofng/libcollector/configure.ac b/gprofng/libcollector/configure.ac
+index b923645c..4df7b1cb 100644
+--- a/gprofng/libcollector/configure.ac
++++ b/gprofng/libcollector/configure.ac
+@@ -18,7 +18,7 @@ dnl <http://www.gnu.org/licenses/>.
+ 
+ m4_include([../../bfd/version.m4])
+ AC_INIT([gprofng], [BFD_VERSION])
+-AC_CONFIG_MACRO_DIRS([../../config ../..])
++#AC_CONFIG_MACRO_DIRS([../../config ../..])
+ AC_CONFIG_AUX_DIR(../..)
+ AC_CANONICAL_TARGET
+ AM_INIT_AUTOMAKE
+-- 
+2.48.0
+

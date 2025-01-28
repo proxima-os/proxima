@@ -1,0 +1,38 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Proxima: rebuild active package",
+			"command": "${workspaceFolder}/support/rebuild.sh",
+			"type": "shell",
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
+			"problemMatcher": [],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "Proxima: run (kvm)",
+			"dependsOn": "Proxima: rebuild active package",
+			"type": "shell",
+			"command": "xbstrap run qemu-kvm",
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
+			"problemMatcher": [],
+		},
+		{
+			"label": "Proxima: run (tcg)",
+			"dependsOn": "Proxima: rebuild active package",
+			"type": "shell",
+			"command": "xbstrap run qemu-tcg",
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
+			"problemMatcher": [],
+		}
+	]
+}

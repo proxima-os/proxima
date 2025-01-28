@@ -1,0 +1,46 @@
+general:
+  mandate_hashes_for_archives: true
+  enable_network_isolation: true
+
+declare_options:
+  - name: arch
+    default: x86_64
+  - name: build-type
+    default: release
+  - name: lto
+    default: 'true'
+
+tasks:
+  - name: make-iso
+    pkgs_required:
+      - proxima
+    tools_required:
+      - host-limine
+    args: ['@SOURCE_ROOT@/support/mkiso.sh', '@SYSROOT_DIR@', '@BUILD_ROOT@/proxima.iso']
+  - name: qemu-kvm
+    tasks_required:
+      - make-iso
+    args: |
+      '@SOURCE_ROOT@/support/qemu/@OPTION:arch@/kvm.sh' '@BUILD_ROOT@/proxima.iso' $QFLAGS
+    containerless: true
+  - name: qemu-tcg
+    tasks_required:
+      - make-iso
+    args: |
+      '@SOURCE_ROOT@/support/qemu/@OPTION:arch@/tcg.sh' '@BUILD_ROOT@/proxima.iso' $QFLAGS
+    containerless: true
+
+imports:
+  - file: packages/autoconf.yml
+  - file: packages/automake.yml
+  - file: packages/binutils.yml
+  - file: packages/filesystem.yml
+  - file: packages/gcc.yml
+  - file: packages/hydrogen.yml
+  - file: packages/init.yml
+  - file: packages/libc.yml
+  - file: packages/libtool.yml
+  - file: packages/limine.yml
+  - file: packages/meson.yml
+  - file: packages/pkgconf.yml
+  - file: packages/proxima.yml

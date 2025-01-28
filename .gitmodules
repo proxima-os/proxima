@@ -1,9 +1,9 @@
-[submodule "subprojects/hydrogen"]
-	path = packages/hydrogen/src
+[submodule "sources/hydrogen"]
+	path = sources/hydrogen
 	url = ../hydrogen.git
-[submodule "packages/libc/src"]
-	path = packages/libc/src
+[submodule "sources/libc"]
+	path = sources/libc
 	url = ../libc.git
-[submodule "packages/init/src"]
-	path = packages/init/src
+[submodule "sources/init"]
+	path = sources/init
 	url = ../init.git

@@ -1,0 +1,132 @@
+From 9fef072fb088d2c05744e24e5a108d17d17ebea0 Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Sun, 26 Jan 2025 10:04:52 +0100
+Subject: [PATCH] Add Proxima support
+
+---
+ fixincludes/mkfixinc.sh     |  1 +
+ gcc/config.gcc              | 11 +++++++++++
+ gcc/config/proxima.h        | 24 ++++++++++++++++++++++++
+ libgcc/config.host          |  8 ++++++++
+ libstdc++-v3/crossconfig.m4 |  7 +++++++
+ 5 files changed, 51 insertions(+)
+ create mode 100644 gcc/config/proxima.h
+
+diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
+index df90720b7..214870468 100755
+--- a/fixincludes/mkfixinc.sh
++++ b/fixincludes/mkfixinc.sh
+@@ -13,6 +13,7 @@ target=fixinc.sh
+ case $machine in
+     i?86-*-cygwin* | \
+     i?86-*-mingw32* | \
++    *-proxima* | \
+     x86_64-*-mingw32* | \
+     powerpc-*-eabisim* | \
+     powerpc-*-eabi*    | \
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index 95c91ee02..a38b09a51 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -878,6 +878,14 @@ case ${target} in
+   rust_target_objs="${rust_target_objs} freebsd-rust.o"
+   target_has_targetrustm=yes
+   ;;
++*-*-proxima*)
++  gas=yes
++  gnu_ld=yes
++  default_use_cxa_atexit=yes
++  default_gnu_indirect_function=yes
++  use_gcc_stdint=provide
++  tmake_file="${tmake_file} t-slibgcc"
++  ;;
+ *-*-fuchsia*)
+   native_system_header_dir=/include
+   tmake_file="t-fuchsia"
+@@ -2284,6 +2292,9 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
+ 			;;
+ 	esac
+ 	;;
++x86_64-*-proxima*)
++	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h i386/x86-64.h proxima.h"
++	;;
+ x86_64-*-fuchsia*)
+ 	tmake_file="${tmake_file} i386/t-x86_64-elf"
+ 	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h fuchsia.h"
+diff --git a/gcc/config/proxima.h b/gcc/config/proxima.h
+new file mode 100644
+index 000000000..f20dd5c0b
+--- /dev/null
++++ b/gcc/config/proxima.h
+@@ -0,0 +1,24 @@
++#undef TARGET_PROXIMA
++#define TARGET_PROXIMA 1
++
++#undef LIB_SPEC
++#define LIB_SPEC "-lc"
++
++#undef LINK_SPEC
++#define LINK_SPEC "%{shared:-shared} %{static:-static} %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
++
++#undef STARTFILE_SPEC
++#define STARTFILE_SPEC "%{!shared: crt0.o%s} crti.o%s %{shared|static-pie|pie|!no-pie:crtbeginS.o%s;:crtbegin.o%s}"
++
++#undef ENDFILE_SPEC
++#define ENDFILE_SPEC "%{shared|static-pie|pie|!no-pie:crtendS.o%s;:crtend.o%s} crtn.o%s"
++
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()                                               \
++  do {                                                                         \
++    builtin_define("__proxima__");                                             \
++    builtin_define("__unix__");                                                \
++    builtin_assert("system=proxima");                                          \
++    builtin_assert("system=unix");                                             \
++    builtin_assert("system=posix");                                            \
++  } while (0);
+diff --git a/libgcc/config.host b/libgcc/config.host
+index e75a7af64..87fd0f5db 100644
+--- a/libgcc/config.host
++++ b/libgcc/config.host
+@@ -300,6 +300,10 @@ case ${host} in
+       ;;
+   esac
+   ;;
++*-*-proxima*)
++  tmake_file="$tmake_file t-crtstuff-pic t-slibgcc t-slibgcc-gld t-slibgcc-elf-ver t-libgcc-pic"
++  extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
++  ;;
+ *-*-fuchsia*)
+   tmake_file="$tmake_file t-crtstuff-pic t-libgcc-pic t-eh-dw2-dip t-slibgcc t-slibgcc-fuchsia"
+   extra_parts="crtbegin.o crtend.o"
+@@ -749,6 +753,10 @@ x86_64-*-elf* | x86_64-*-rtems*)
+ 	    ;;
+ 	esac
+ 	;;
++x86_64-*-proxima*)
++	extra_parts="$extra_parts crtprec32.o crtprec64.o crtprec80.o crtfastmath.o"
++	tmake_file="$tmake_file i386/t-crtpc t-crtfm i386/t-crtstuff t-dfprules"
++	;;
+ x86_64-*-fuchsia*)
+ 	tmake_file="$tmake_file t-libgcc-pic"
+ 	;;
+diff --git a/libstdc++-v3/crossconfig.m4 b/libstdc++-v3/crossconfig.m4
+index b3269cb88..963892920 100644
+--- a/libstdc++-v3/crossconfig.m4
++++ b/libstdc++-v3/crossconfig.m4
+@@ -136,6 +136,13 @@ case "${host}" in
+     AC_CHECK_FUNCS(uselocale)
+     ;;
+ 
++  *-proxima*)
++    GLIBCXX_CHECK_COMPILER_FEATURES
++    GLIBCXX_CHECK_LINKER_FEATURES
++    GLIBCXX_CHECK_MATH_SUPPORT
++    GLIBCXX_CHECK_STDLIB_SUPPORT
++    ;;
++
+   *-fuchsia*)
+     SECTION_FLAGS='-ffunction-sections -fdata-sections'
+     AC_SUBST(SECTION_FLAGS)
+-- 
+2.48.0
+

@@ -1,0 +1,38 @@
+sources:
+  - name: limine
+    version: '8.7.0'
+    subdir: ports
+    url: 'https://github.com/limine-bootloader/limine/releases/download/v8.7.0/limine-8.7.0.tar.xz'
+    checksum: 'blake2b:91aa47aebed524b2ed21abddcee85dc2284a7ebf8ee567106bd2b05d35f4976454b18299fde76842a621430f8cc897ee65c800e6467f35e1a854d6a530f44727'
+    format: 'tar.xz'
+    extract_path: 'limine-8.7.0'
+
+tools:
+  - name: host-limine
+    architecture: '@OPTION:arch@'
+    from_source: limine
+    tools_required:
+      - host-gcc
+    configure:
+      - args: |
+          do_config () {
+              '@THIS_SOURCE_DIR@/configure' '--prefix=@PREFIX@' "$@"
+          }
+          case '@OPTION:arch@' in
+          x86_64) do_config --enable-bios --enable-bios-cd --enable-bios-pxe \
+                            --enable-uefi-ia32 --enable-uefi-x86-64 --enable-uefi-cd
+                  ;;
+          *)      do_config ;;
+          esac
+        environ:
+          TOOLCHAIN_FOR_TARGET: gnu
+          AR_FOR_TARGET: '@OPTION:arch@-unknown-proxima-gcc-ar'
+          CC_FOR_TARGET: '@OPTION:arch@-unknown-proxima-gcc'
+          LD_FOR_TARGET: '@OPTION:arch@-unknown-proxima-ld'
+          OBJCOPY_FOR_TARGET: '@OPTION:arch@-unknown-proxima-objcopy'
+          OBJDUMP_FOR_TARGET: '@OPTION:arch@-unknown-proxima-objdump'
+          READELF_FOR_TARGET: '@OPTION:arch@-unknown-proxima-readelf'
+    compile:
+      - args: ['make', '-j@PARALLELISM@']
+    install:
+      - args: ['make', '-j@PARALLELISM@', 'install']

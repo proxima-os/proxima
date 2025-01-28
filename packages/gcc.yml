@@ -1,0 +1,47 @@
+sources:
+  - name: gcc
+    subdir: ports
+    git: 'https://gcc.gnu.org/git/gcc.git'
+    tag: 'releases/gcc-14.2.0'
+    version: '14.2.0'
+    tools_required:
+      - host-autoconf-2.69
+      - host-automake
+      - host-libtool
+    regenerate:
+      - args: ['@SOURCE_ROOT@/support/autoconf/regenerate.sh', '-I@THIS_SOURCE_DIR@/config']
+
+tools:
+  - name: host-gcc
+    architecture: '@OPTION:arch@'
+    from_source: gcc
+    tools_required:
+      - tool: host-binutils
+        recursive: true
+    configure:
+      - args:
+          - '@THIS_SOURCE_DIR@/configure'
+          - '--prefix=@PREFIX@'
+          - '--target=@OPTION:arch@-unknown-proxima'
+          - '--with-sysroot=@SYSROOT_DIR@'
+          - '--disable-nls'
+          - '--enable-languages=c,c++'
+          - '--enable-default-pie'
+          - '--without-headers'
+          - '--disable-shared'
+    stages:
+      - name: compiler
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'inhibit_libc=true', 'all-gcc']
+        install:
+          - args: ['make', '-j@PARALLELISM@', 'install-gcc']
+      - name: support
+        pkgs_required:
+          - libc
+        tools_required:
+          - tool: host-gcc
+            stage_dependencies: [compiler]
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'inhibit_libc=true', 'all-target-libgcc']
+        install:
+          - args: ['make', '-j@PARALLELISM@', 'install-target-libgcc']

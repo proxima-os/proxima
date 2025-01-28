@@ -1,0 +1,9 @@
+tools:
+  - name: host-meson
+    architecture: noarch
+    source:
+      subdir: sources
+      version: '0.0.0'
+    install:
+      - args: ['mkdir', '-p', '@PREFIX@']
+      - args: ['@SOURCE_ROOT@/support/cross/meson-@OPTION:arch@.sh', '@PREFIX@/cross.txt', '@SYSROOT_DIR@']

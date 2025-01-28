@@ -1,0 +1,10 @@
+{
+    "clangd.path": "${workspaceFolder}/support/clangd.sh",
+    "clangd.arguments": [
+        "${workspaceFolder}/build"
+    ],
+    "mesonbuild.configureOnOpen": false,
+    "mesonbuild.selectRootDir": false,
+    "cmake.configureOnOpen": false,
+    "cmake.configureOnEdit": false,
+}

@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Proxima: debug kernel",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/system-root/boot/hydrogen",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "${workspaceFolder}/support/gdb.sh",
+            "preLaunchTask": "Proxima: rebuild active package",
+            "debugServerPath": "${workspaceFolder}/support/qemu-debug.sh",
+            "debugServerArgs": "${workspaceFolder}/build qemu-tcg",
+            "serverStarted": "^Starting QEMU$",
+            "miDebuggerServerAddress": "127.0.0.1:1234",
+        },
+        {
+            "name": "Proxima: debug kernel (kvm)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/system-root/boot/hydrogen",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "${workspaceFolder}/support/gdb.sh",
+            "preLaunchTask": "Proxima: rebuild active package",
+            "debugServerPath": "${workspaceFolder}/support/qemu-debug.sh",
+            "debugServerArgs": "${workspaceFolder}/build qemu-kvm",
+            "serverStarted": "^Starting QEMU$",
+            "miDebuggerServerAddress": "127.0.0.1:1234",
+        }
+    ]
+}
