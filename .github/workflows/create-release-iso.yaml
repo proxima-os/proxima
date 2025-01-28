@@ -1,0 +1,50 @@
+name: Create release ISO
+
+on:
+  push:
+    branches:
+      - actions
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:3.21.2
+
+    strategy:
+      matrix:
+        arch:
+          - x86_64
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        apk add bash bison flex gcc g++ git gmp-dev isl-dev m4 make meson mtools nasm ninja mpc1-dev mpfr-dev perl \
+                py3-pip tar xorriso
+        pip3 install --break-system-packages xbstrap
+
+    - name: Setup
+      run: |
+        mkdir build
+        cat > build/bootstrap-site.yml << EOF
+        define_options:
+          arch: ${{matrix.arch}}
+        EOF
+        ( cd build && xbstrap init .. )
+
+    - name: Build
+      run: xbstrap install proxima
+      working-directory: build
+
+    - name: Create ISO
+      run: xbstrap run make-iso
+      working-directory: build
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: iso-image
+        path: build/proxima.iso
