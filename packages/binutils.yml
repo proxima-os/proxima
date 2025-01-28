@@ -13,7 +13,7 @@ sources:
       - args: |
           find . -path ./readline -prune \
                   -o '(' -name configure.ac -o -name configure.in ')' -type f -print0 \
-                  | xargs -0 autoreconf -fvi '-I@THIS_SOURCE_DIR@/config'
+                  | sort -z | xargs -0 autoreconf -fvi '-I@THIS_SOURCE_DIR@/config'
 
 tools:
   - name: host-binutils
