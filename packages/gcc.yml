@@ -20,8 +20,7 @@ tools:
         recursive: true
     configure:
       - args: |
-          sed -i "s/checking dependency style/checking dependency style (\$ac_aux_dir ; \$am_depcomp ; \$am_compiler_list ; \$(sed -n 's\/^\\\([a-zA-Z
-0-9*]\\\))$\/\\\1\/p' < .\/depcomp))/g" '@THIS_SOURCE_DIR@/libcpp/configure'
+          sed -i "s/checking dependency style/checking dependency style (\$ac_aux_dir ; \$am_depcomp ; \$am_compiler_list ; \$(sed -n 's\/^\\\([a-zA-Z0-9*]\\\))$\/\\\1\/p' < .\/depcomp))/g" '@THIS_SOURCE_DIR@/libcpp/configure'
       - args:
           - '@THIS_SOURCE_DIR@/configure'
           - '--prefix=@PREFIX@'
