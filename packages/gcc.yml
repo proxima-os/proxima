@@ -36,8 +36,10 @@ tools:
         install:
           - args: ['make', '-j@PARALLELISM@', 'install-gcc']
           - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-unknown-proxima/bin']
-          - args: ['ln', '-sf', '../../host-binutils/bin/as', '@PREFIX@/@OPTION:arch@-unknown-proxima/bin/as']
-          - args: ['ln', '-sf', '../../host-binutils/bin/ld', '@PREFIX@/@OPTION:arch@-unknown-proxima/bin/ld']
+          - args: ['ln', '-sf', '../../../host-binutils/@OPTION:arch@-unknown-proxima/bin/as',
+                                '@PREFIX@/@OPTION:arch@-unknown-proxima/bin/as']
+          - args: ['ln', '-sf', '../../../host-binutils/@OPTION:arch@-unknown-proxima/bin/ld',
+                                '@PREFIX@/@OPTION:arch@-unknown-proxima/bin/ld']
       - name: support
         pkgs_required:
           - libc
