@@ -53,4 +53,7 @@ jobs:
       if: ${{ failure() }}
       with:
         name: logs
-        path: build/**/config.log
+        path: |
+          build/**/config.log
+          build/**/depcomp
+          ports/**/depcomp
