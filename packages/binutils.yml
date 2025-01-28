@@ -26,6 +26,7 @@ tools:
           - '--target=@OPTION:arch@-unknown-proxima'
           - '--with-sysroot=@SYSROOT_DIR@'
           - '--disable-nls'
+          - '--@OPTION:host-gdb@-gdb'
     compile:
       - args: ['make', '-j@PARALLELISM@', 'MAKEINFO=true']
     install:

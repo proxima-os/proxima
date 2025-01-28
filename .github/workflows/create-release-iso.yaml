@@ -1,10 +1,7 @@
 name: Create release ISO
 
 on:
-  push:
-    branches:
-      - actions
-      - main
+  - push
 
 jobs:
   build:
@@ -50,3 +47,10 @@ jobs:
       with:
         name: iso-image
         path: build/proxima.iso
+
+    - name: Upload config.log files
+      uses: actions/upload-artifact@v4
+      if: ${{ failure() }}
+      with:
+        name: logs
+        path: build/**/config.log
