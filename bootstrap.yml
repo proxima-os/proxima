@@ -16,7 +16,8 @@ tasks:
       - proxima
     tools_required:
       - host-limine
-    args: ['@SOURCE_ROOT@/support/mkiso.sh', '@SYSROOT_DIR@', '@BUILD_ROOT@/proxima.iso']
+    args: ['@SOURCE_ROOT@/support/mkiso.sh', 'proxima.iso']
+    workdir: '@BUILD_ROOT@'
   - name: qemu-kvm
     tasks_required:
       - make-iso
