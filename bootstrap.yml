@@ -37,8 +37,8 @@ imports:
   - file: packages/filesystem.yml
   - file: packages/gcc.yml
   - file: packages/hydrogen.yml
-  - file: packages/init.yml
-  - file: packages/libc.yml
+  #- file: packages/init.yml
+  #- file: packages/libc.yml
   - file: packages/libtool.yml
   - file: packages/limine.yml
   - file: packages/meson.yml

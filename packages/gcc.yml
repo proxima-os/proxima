@@ -41,8 +41,8 @@ tools:
           - args: ['ln', '-sf', '../../../host-binutils/@OPTION:arch@-unknown-proxima/bin/ld',
                                 '@PREFIX@/@OPTION:arch@-unknown-proxima/bin/ld']
       - name: support
-        pkgs_required:
-          - libc
+        #pkgs_required:
+        #  - libc
         tools_required:
           - tool: host-gcc
             stage_dependencies: [compiler]

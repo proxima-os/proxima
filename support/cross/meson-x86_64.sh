@@ -20,6 +20,10 @@ cpu = 'x86_64'
 endian = 'little'
 
 [built-in options]
+c_args = ['-fdata-sections', '-ffunction-sections']
+c_link_args = ['-Wl,--gc-sections,--sort-section=alignment']
+cpp_args = c_args
+cpp_link_args = c_link_args
 libdir = 'lib'
 
 [properties]
