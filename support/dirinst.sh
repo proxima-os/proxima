@@ -12,7 +12,6 @@ sysroot=system-root
 limine="$(xbstrap runtool host-limine -- limine --print-datadir)"
 mkdir -p "$1/EFI/BOOT"
 cp "$limine"/*.EFI "$1/EFI/BOOT"
-cp "$limine"/limine-bios.sys "$1"
 cat > "$1/limine.conf" << EOF
 timeout: 0
 
