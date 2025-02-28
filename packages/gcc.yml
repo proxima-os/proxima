@@ -29,6 +29,7 @@ tools:
           - '--enable-default-pie'
           - '--without-headers'
           - '--disable-shared'
+          - '--disable-frame-pointer'
     stages:
       - name: compiler
         compile:
