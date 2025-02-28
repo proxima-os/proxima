@@ -1,9 +1,3 @@
 [submodule "sources/hydrogen"]
 	path = sources/hydrogen
 	url = ../hydrogen.git
-[submodule "sources/libc"]
-	path = sources/libc
-	url = ../libc.git
-[submodule "sources/init"]
-	path = sources/init
-	url = ../init.git
