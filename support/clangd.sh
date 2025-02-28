@@ -15,6 +15,6 @@ pkg="${pkg##*/}"
 
 exec xbstrap lsp "$pkg" -- \
         env 'HOME=@BUILD_ROOT@/clangd' 'XDG_CACHE_HOME=@BUILD_ROOT@/clangd/cache' \
-        clangd --background-index '--compile-commands-dir=@BUILD_ROOT@' --query-driver='**/*' \
+        clangd --background-index '--compile-commands-dir=@THIS_BUILD_DIR@' --query-driver='**/*' \
                 --path-mappings '@HOST_BUILD_ROOT@=@BUILD_ROOT@,@HOST_SOURCE_ROOT@=@SOURCE_ROOT@' \
                 "$@"
