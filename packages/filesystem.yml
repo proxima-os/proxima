@@ -8,6 +8,7 @@ packages:
     build:
       - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr']
       - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/bin']
+      - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/include']
       - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/lib']
-      - args: ['ln', '-sf', 'usr/bin', '@THIS_COLLECT_DIR@/bin']
-      - args: ['ln', '-sf', 'usr/lib', '@THIS_COLLECT_DIR@/lib']
+      - args: ['ln', '-sf', 'bin', '@THIS_COLLECT_DIR@/usr/sbin']
+      - args: ['ln', '-sf', 'usr/bin', 'usr/lib', 'usr/sbin', '@THIS_COLLECT_DIR@']
