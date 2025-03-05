@@ -25,4 +25,5 @@ packages:
           - '@THIS_SOURCE_DIR@'
     build:
       - args: ['meson', 'install', '--destdir=@THIS_COLLECT_DIR@']
+      - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/boot']
       - args: ['cp', '@THIS_COLLECT_DIR@/usr/lib/ld64.so.1', '@THIS_COLLECT_DIR@/boot']
