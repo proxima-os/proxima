@@ -42,4 +42,5 @@ imports:
   - file: packages/limine.yml
   - file: packages/meson.yml
   - file: packages/pkgconf.yml
+  - file: packages/plibc.yml
   - file: packages/proxima.yml

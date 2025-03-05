@@ -1,3 +1,6 @@
 [submodule "sources/hydrogen"]
 	path = sources/hydrogen
 	url = ../hydrogen.git
+[submodule "sources/plibc"]
+	path = sources/plibc
+	url = ../plibc.git

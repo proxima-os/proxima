@@ -7,6 +7,6 @@ if test ! -L bootstrap.link; then
     exit 2
 fi
 
-xbstrap configure "$1"
+xbstrap configure -c "$1"
 exec xbstrap lsp "$1" -- \
         ln -srf '@THIS_BUILD_DIR@/compile_commands.json' '@BUILD_ROOT@/compile_commands.json'

@@ -6,3 +6,4 @@ packages:
       version: '0.0pl@ROLLING_ID@'
     pkgs_required:
       - hydrogen
+      - plibc

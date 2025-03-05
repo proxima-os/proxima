@@ -1,7 +1,7 @@
 sources:
   - name: gcc
     subdir: ports
-    git: 'https://gcc.gnu.org/git/gcc.git'
+    git: 'https://github.com/gcc-mirror/gcc.git'
     tag: 'releases/gcc-14.2.0'
     version: '14.2.0'
     tools_required:
@@ -27,13 +27,14 @@ tools:
           - '--disable-nls'
           - '--enable-languages=c,c++'
           - '--enable-default-pie'
-          - '--without-headers'
-          - '--disable-shared'
+          - '--enable-shared'
           - '--disable-frame-pointer'
     stages:
       - name: compiler
+        pkgs_required:
+          - filesystem
         compile:
-          - args: ['make', '-j@PARALLELISM@', 'inhibit_libc=true', 'all-gcc']
+          - args: ['make', '-j@PARALLELISM@', 'all-gcc']
         install:
           - args: ['make', '-j@PARALLELISM@', 'install-gcc']
           - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-unknown-proxima/bin']
@@ -42,12 +43,25 @@ tools:
           - args: ['ln', '-sf', '../../../host-binutils/@OPTION:arch@-unknown-proxima/bin/ld',
                                 '@PREFIX@/@OPTION:arch@-unknown-proxima/bin/ld']
       - name: support
-        #pkgs_required:
-        #  - libc
+        pkgs_required:
+          - plibc
         tools_required:
           - tool: host-gcc
             stage_dependencies: [compiler]
         compile:
-          - args: ['make', '-j@PARALLELISM@', 'inhibit_libc=true', 'all-target-libgcc']
+          - args: ['make', '-j@PARALLELISM@']
         install:
-          - args: ['make', '-j@PARALLELISM@', 'install-target-libgcc']
+          - args: ['make', '-j@PARALLELISM@', 'install']
+
+packages:
+  - name: gcc-libs
+    implict_package: true
+    architecture: '@OPTION:arch@'
+    from_source: gcc
+    pkgs_required:
+      - plibc
+    tools_required:
+      - host-gcc
+    build:
+      - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/lib']
+      - args: "cp '@BUILD_ROOT@/tools/host-gcc/@OPTION:arch@-unknown-proxima/lib'/*.so* '@THIS_COLLECT_DIR@/usr/lib'"

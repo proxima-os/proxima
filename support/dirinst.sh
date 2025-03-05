@@ -17,9 +17,10 @@ timeout: 0
 
 /Proxima
     protocol: limine
-    kernel_path: boot():/boot/hydrogen
-    module_path: boot():/boot/proxima.tar
+    kernel_path: boot():/hydrogen
+    module_path: boot():/init
+    module_path: boot():/ld64.so.1
 EOF
 
-cp -r "$sysroot/boot" "$1"
-"$(dirname "$(readlink -f -- "$0")")/geninitrd.sh" "$sysroot" "$1/boot/proxima.tar"
+cp -r "$sysroot/boot/." "$1"
+"$(dirname "$(readlink -f -- "$0")")/geninitrd.sh" "$sysroot" "$1/proxima.tar"

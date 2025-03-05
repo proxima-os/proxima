@@ -13,6 +13,11 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "miDebuggerPath": "${workspaceFolder}/support/gdb.sh",
+            "setupCommands": [
+                {
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/boot/ld64.so.1 -o 0x3000"
+                }
+            ],
             "preLaunchTask": "Proxima: rebuild active package",
             "debugServerPath": "${workspaceFolder}/support/qemu-debug.sh",
             "debugServerArgs": "${workspaceFolder}/build qemu-tcg",
