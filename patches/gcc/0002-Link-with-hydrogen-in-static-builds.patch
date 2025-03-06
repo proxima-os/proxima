@@ -1,0 +1,29 @@
+From 9b0114fb79e24103a59f60599e8faf0413b4f2db Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Thu, 6 Mar 2025 16:58:55 +0100
+Subject: [PATCH 2/3] Link with hydrogen in static builds
+
+---
+ gcc/config/proxima.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/gcc/config/proxima.h b/gcc/config/proxima.h
+index f20dd5c0b..daecc0da9 100644
+--- a/gcc/config/proxima.h
++++ b/gcc/config/proxima.h
+@@ -4,8 +4,11 @@
+ #undef LIB_SPEC
+ #define LIB_SPEC "-lc"
+ 
++/* if -static without -nostdlib, pass -lhydrogen *before* -static so that ld is allowed to use the shared version */
+ #undef LINK_SPEC
+-#define LINK_SPEC "%{shared:-shared} %{static:-static} %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
++#define LINK_SPEC "%{shared:-shared}" \
++                  " %{static: %{!nostdlib: -lhydrogen} -static --no-dynamic-linker}" \
++                  " %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
+ 
+ #undef STARTFILE_SPEC
+ #define STARTFILE_SPEC "%{!shared: crt0.o%s} crti.o%s %{shared|static-pie|pie|!no-pie:crtbeginS.o%s;:crtbegin.o%s}"
+-- 
+2.48.1
+

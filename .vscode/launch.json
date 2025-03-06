@@ -15,7 +15,7 @@
             "miDebuggerPath": "${workspaceFolder}/support/gdb.sh",
             "setupCommands": [
                 {
-                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/boot/ld64.so.1 -o 0x3000"
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/boot/ld64.so.1 -o 0xc000"
                 }
             ],
             "preLaunchTask": "Proxima: rebuild active package",

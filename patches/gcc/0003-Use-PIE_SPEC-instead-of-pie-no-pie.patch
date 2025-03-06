@@ -1,0 +1,29 @@
+From 49803b187ce0f5a2cd0b6a893d4a2b1a8bc942e3 Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Thu, 6 Mar 2025 16:59:57 +0100
+Subject: [PATCH 3/3] Use PIE_SPEC instead of pie|!no-pie
+
+---
+ gcc/config/proxima.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/gcc/config/proxima.h b/gcc/config/proxima.h
+index daecc0da9..431c6de7b 100644
+--- a/gcc/config/proxima.h
++++ b/gcc/config/proxima.h
+@@ -11,10 +11,10 @@
+                   " %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
+ 
+ #undef STARTFILE_SPEC
+-#define STARTFILE_SPEC "%{!shared: crt0.o%s} crti.o%s %{shared|static-pie|pie|!no-pie:crtbeginS.o%s;:crtbegin.o%s}"
++#define STARTFILE_SPEC "%{!shared: crt0.o%s} crti.o%s %{shared|static-pie|" PIE_SPEC ":crtbeginS.o%s;:crtbegin.o%s}"
+ 
+ #undef ENDFILE_SPEC
+-#define ENDFILE_SPEC "%{shared|static-pie|pie|!no-pie:crtendS.o%s;:crtend.o%s} crtn.o%s"
++#define ENDFILE_SPEC "%{shared|static-pie|" PIE_SPEC ":crtendS.o%s;:crtend.o%s} crtn.o%s"
+ 
+ #undef TARGET_OS_CPP_BUILTINS
+ #define TARGET_OS_CPP_BUILTINS()                                               \
+-- 
+2.48.1
+
