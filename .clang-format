@@ -1,6 +1,7 @@
 AlignAfterOpenBracket: BlockIndent
 AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
+AlignEscapedNewlines: Left
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortEnumsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None
