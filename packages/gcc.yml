@@ -65,3 +65,4 @@ packages:
     build:
       - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/lib']
       - args: "cp '@BUILD_ROOT@/tools/host-gcc/@OPTION:arch@-unknown-proxima/lib'/*.so* '@THIS_COLLECT_DIR@/usr/lib'"
+      - args: "rm '@THIS_COLLECT_DIR@/usr/lib'/*-gdb.py"
