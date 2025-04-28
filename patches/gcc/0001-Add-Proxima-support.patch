@@ -1,4 +1,4 @@
-From 4c75e01e73102c022e7b2aae53c32d4f494fe2fc Mon Sep 17 00:00:00 2001
+From 5f3409b19e887800afc062d5071c12b95190cc18 Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Sat, 19 Apr 2025 12:58:00 +0200
 Subject: [PATCH] Add Proxima support
@@ -19,22 +19,22 @@ Subject: [PATCH] Add Proxima support
  create mode 100644 gcc/config/proxima.opt.urls
 
 diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
-index df90720b7..214870468 100755
+index 7112f4dcd..6a2082275 100755
 --- a/fixincludes/mkfixinc.sh
 +++ b/fixincludes/mkfixinc.sh
 @@ -13,6 +13,7 @@ target=fixinc.sh
  case $machine in
      i?86-*-cygwin* | \
-     i?86-*-mingw32* | \
+     *-mingw32* | \
 +    *-proxima* | \
-     x86_64-*-mingw32* | \
      powerpc-*-eabisim* | \
      powerpc-*-eabi*    | \
+     powerpc-*-rtems*   | \
 diff --git a/gcc/config.gcc b/gcc/config.gcc
-index 95c91ee02..494062143 100644
+index 40b50dc96..fda34d202 100644
 --- a/gcc/config.gcc
 +++ b/gcc/config.gcc
-@@ -878,6 +878,15 @@ case ${target} in
+@@ -879,6 +879,15 @@ case ${target} in
    rust_target_objs="${rust_target_objs} freebsd-rust.o"
    target_has_targetrustm=yes
    ;;
@@ -50,7 +50,7 @@ index 95c91ee02..494062143 100644
  *-*-fuchsia*)
    native_system_header_dir=/include
    tmake_file="t-fuchsia"
-@@ -2284,6 +2293,9 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
+@@ -2320,6 +2329,9 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
  			;;
  	esac
  	;;
@@ -165,10 +165,10 @@ index 000000000..15e15eeb2
 +UrlSuffix(gcc/Link-Options.html#index-rdynamic)
 +
 diff --git a/libgcc/config.host b/libgcc/config.host
-index e75a7af64..87fd0f5db 100644
+index 6a88ee5a2..c17edf9db 100644
 --- a/libgcc/config.host
 +++ b/libgcc/config.host
-@@ -300,6 +300,10 @@ case ${host} in
+@@ -306,6 +306,10 @@ case ${host} in
        ;;
    esac
    ;;
@@ -179,7 +179,7 @@ index e75a7af64..87fd0f5db 100644
  *-*-fuchsia*)
    tmake_file="$tmake_file t-crtstuff-pic t-libgcc-pic t-eh-dw2-dip t-slibgcc t-slibgcc-fuchsia"
    extra_parts="crtbegin.o crtend.o"
-@@ -749,6 +753,10 @@ x86_64-*-elf* | x86_64-*-rtems*)
+@@ -764,6 +768,10 @@ x86_64-*-elf* | x86_64-*-rtems*)
  	    ;;
  	esac
  	;;
