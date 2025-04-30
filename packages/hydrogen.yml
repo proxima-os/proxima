@@ -4,7 +4,7 @@ packages:
     architecture: '@OPTION:arch@'
     source:
       subdir: sources
-      version: '0.0pl@ROLLING_ID'
+      version: '0.0pl@ROLLING_ID@'
     tools_required:
       - tool: host-gcc
         stage_dependencies: [compiler]
