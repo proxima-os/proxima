@@ -1,11 +1,11 @@
 sources:
   - name: limine
-    version: '9.0.0'
+    version: '9.2.3'
     subdir: ports
-    url: 'https://github.com/limine-bootloader/limine/releases/download/v9.0.0/limine-9.0.0.tar.xz'
-    checksum: 'blake2b:6334cacbe97b52b6fab7afde25f275dbc85c35f143fb3996fa714dda4f24422aa6afe13e573bce38951b141bbb3abb3e8143de9b101fd5b3bde87512306b6142'
+    url: 'https://github.com/limine-bootloader/limine/releases/download/v9.2.3/limine-9.2.3.tar.xz'
+    checksum: 'blake2b:733082c3a855bcf2d260104d4b97699f9614bf953bff91dda6b4386c95b9b328429905078968efb4c12502307fb52d3d760f10557dbf020421f4da92e792a264'
     format: 'tar.xz'
-    extract_path: 'limine-9.0.0'
+    extract_path: 'limine-9.2.3'
 
 tools:
   - name: host-limine
