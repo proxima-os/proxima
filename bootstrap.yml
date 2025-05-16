@@ -9,6 +9,8 @@ declare_options:
     default: release
   - name: lto
     default: 'true'
+  - name: triplet
+    default: unknown-hydrogen-plibc
 
 tasks:
   - name: make-iso

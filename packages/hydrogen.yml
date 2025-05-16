@@ -6,8 +6,7 @@ packages:
       subdir: sources
       version: '0.0pl@ROLLING_ID@'
     tools_required:
-      - tool: host-gcc
-        stage_dependencies: [compiler]
+      - host-gcc-bootstrap
       - host-meson
     configure:
       - args:
@@ -19,7 +18,6 @@ packages:
           - '-Db_lto=@OPTION:lto@'
           - '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
-          - '-Dqemu_debugcon=true'
           - '@THIS_SOURCE_DIR@'
     build:
       - args: ['meson', 'compile', '-j@PARALLELISM@']

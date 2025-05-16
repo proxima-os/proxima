@@ -1,6 +1,6 @@
 packages:
   - name: plibc
-    implict_package: true
+    #implict_package: true
     architecture: '@OPTION:arch@'
     source:
       subdir: sources
@@ -9,8 +9,7 @@ packages:
       - filesystem
       - hydrogen
     tools_required:
-      - tool: host-gcc
-        stage_dependencies: [compiler]
+      - host-gcc-bootstrap
       - host-meson
     configure:
       - args:
@@ -19,11 +18,12 @@ packages:
           - '--cross-file=@BUILD_ROOT@/tools/host-meson/cross.txt'
           - '-Dprefix=/usr'
           - '-Dbuildtype=@OPTION:build-type@'
-          - '-Db_lto=@OPTION:lto@'
-          - '-Db_lto_mode=thin'
+          # disable lto because it has a buggy interaction with version scripts:
+          # with it enabled any libc code that references a global will fail to
+          # link in ld64.so unless the global is exported in the version script
+          #- '-Db_lto=@OPTION:lto@'
+          #- '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
           - '@THIS_SOURCE_DIR@'
     build:
       - args: ['meson', 'install', '--destdir=@THIS_COLLECT_DIR@']
-      - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/boot']
-      - args: ['cp', '@THIS_COLLECT_DIR@/usr/lib/ld64.so.1', '@THIS_COLLECT_DIR@/boot']

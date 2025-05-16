@@ -1,11 +1,10 @@
 sources:
   - name: autoconf
     subdir: ports
-    url: 'https://ftpmirror.gnu.org/autoconf/autoconf-2.72.tar.xz'
-    checksum: 'blake2b:01caeced9e53d8bd39fb0cf4929322f0d463971b0a96368aa55892026897a9e98c2ca84a77db1b3c6c4483aea54b96da16a7bc00b7ac15e23c6b0471438012db'
-    format: 'tar.xz'
-    extract_path: 'autoconf-2.72'
-    version: '2.72'
+    git: 'git://git.savannah.gnu.org/autoconf.git'
+    tag: 'v2.72'
+    regenerate:
+      - args: ['./bootstrap']
   - name: autoconf-2.69
     subdir: ports
     url: 'https://ftpmirror.gnu.org/autoconf/autoconf-2.69.tar.xz'

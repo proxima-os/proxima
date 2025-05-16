@@ -1,7 +1,7 @@
-From 57a82a46c9801dbf1fb180cbfbccea58c5a9332d Mon Sep 17 00:00:00 2001
+From 2f8989d064b8e2ad248f8eef18b8f0b573448d9f Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Sun, 26 Jan 2025 09:41:49 +0100
-Subject: [PATCH] Add Proxima support
+Subject: [PATCH 2/2] Add Proxima support
 
 ---
  bfd/config.bfd    | 5 +++++
@@ -10,14 +10,14 @@ Subject: [PATCH] Add Proxima support
  3 files changed, 9 insertions(+)
 
 diff --git a/bfd/config.bfd b/bfd/config.bfd
-index 6553aac1..dd12ceb6 100644
+index 0d790117..e0e4221c 100644
 --- a/bfd/config.bfd
 +++ b/bfd/config.bfd
 @@ -735,6 +735,11 @@ case "${targ}" in
      targ_selvecs="i386_elf32_vec iamcu_elf32_vec x86_64_elf32_vec"
      want64=true
      ;;
-+  x86_64-*-proxima*)
++  x86_64-*-hydrogen*)
 +    targ_defvec=x86_64_elf64_vec
 +    targ_selvecs=i386_elf32_vec
 +    want64=true
@@ -26,31 +26,31 @@ index 6553aac1..dd12ceb6 100644
    i[3-7]86-*-lynxos*)
      targ_defvec=i386_elf32_vec
 diff --git a/gas/configure.tgt b/gas/configure.tgt
-index d58f2187..0bca690c 100644
+index 7c81bffa..9b214f70 100644
 --- a/gas/configure.tgt
 +++ b/gas/configure.tgt
 @@ -242,6 +242,7 @@ case ${generic_target} in
        x86_64*-linux-gnux32)		arch=x86_64:32 ;;
      esac ;;
    i386-*-lynxos*)			fmt=elf em=lynx ;;
-+  i386-*-proxima*)			fmt=elf ;;
++  i386-*-hydrogen*)			fmt=elf ;;
    i386-*-redox*)			fmt=elf ;;
    i386-*-solaris*)			fmt=elf em=solaris ;;
    i386-*-freebsd* \
 diff --git a/ld/configure.tgt b/ld/configure.tgt
-index f937f78b..835b747b 100644
+index ea01ccf9..74f9fc52 100644
 --- a/ld/configure.tgt
 +++ b/ld/configure.tgt
-@@ -1020,6 +1020,9 @@ x86_64-*-linux-*)	targ_emul=elf_x86_64
+@@ -1016,6 +1016,9 @@ x86_64-*-linux-*)	targ_emul=elf_x86_64
  			targ_extra_libpath="elf_i386 elf32_x86_64"
  			tdir_elf_i386=`echo ${targ_alias} | sed -e 's/x86_64/i386/'`
  			;;
-+x86_64-*-proxima*)	targ_emul=elf_x86_64
++x86_64-*-hydrogen*)	targ_emul=elf_x86_64
 +			targ_extra_emuls=elf_i386
 +			;;
  x86_64-*-redox*)	targ_emul=elf_x86_64
  			targ_extra_emuls=elf_i386
  			;;
 -- 
-2.48.0
+2.49.0
 

@@ -1,17 +1,17 @@
 #!/bin/sh
 set -ue
-# usage: meson-x86_64.sh output sysroot
+# usage: meson-x86_64.sh output sysroot triplet
 
 cat > "$1" << EOF
 [binaries]
-ar = 'x86_64-unknown-proxima-gcc-ar'
-c = 'x86_64-unknown-proxima-gcc'
-cpp = 'x86_64-unknown-proxima-g++'
-nm = 'x86_64-unknown-proxima-gcc-nm'
-objcopy = 'x86_64-unknown-proxima-objcopy'
+ar = '$3-gcc-ar'
+c = '$3-gcc'
+cpp = '$3-g++'
+nm = '$3-gcc-nm'
+objcopy = '$3-objcopy'
 pkg-config = 'pkgconf'
-ranlib = 'x86_64-unknown-proxima-gcc-ranlib'
-strip = 'x86_64-unknown-proxima-strip'
+ranlib = '$3-gcc-ranlib'
+strip = '$3-strip'
 
 [host_machine]
 system = 'proxima'

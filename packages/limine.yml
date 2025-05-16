@@ -1,18 +1,18 @@
 sources:
   - name: limine
-    version: '9.2.3'
+    version: '9.3.1'
     subdir: ports
-    url: 'https://github.com/limine-bootloader/limine/releases/download/v9.2.3/limine-9.2.3.tar.xz'
-    checksum: 'blake2b:733082c3a855bcf2d260104d4b97699f9614bf953bff91dda6b4386c95b9b328429905078968efb4c12502307fb52d3d760f10557dbf020421f4da92e792a264'
+    url: 'https://github.com/limine-bootloader/limine/releases/download/v9.3.1/limine-9.3.1.tar.xz'
+    checksum: 'blake2b:6808b26cf17005c5aa8ce07d69b3177e815410160663015287451820c272937bf298c0a5c2aa2c65183d6a2a87e4dd03f965fc6112476b06c0bbc5f0b55750a9'
     format: 'tar.xz'
-    extract_path: 'limine-9.2.3'
+    extract_path: 'limine-9.3.1'
 
 tools:
   - name: host-limine
     architecture: '@OPTION:arch@'
     from_source: limine
     tools_required:
-      - host-gcc
+      - host-gcc-bootstrap
     configure:
       - args: |
           do_config () {
@@ -26,12 +26,12 @@ tools:
           esac
         environ:
           TOOLCHAIN_FOR_TARGET: gnu
-          AR_FOR_TARGET: '@OPTION:arch@-unknown-proxima-gcc-ar'
-          CC_FOR_TARGET: '@OPTION:arch@-unknown-proxima-gcc'
-          LD_FOR_TARGET: '@OPTION:arch@-unknown-proxima-ld'
-          OBJCOPY_FOR_TARGET: '@OPTION:arch@-unknown-proxima-objcopy'
-          OBJDUMP_FOR_TARGET: '@OPTION:arch@-unknown-proxima-objdump'
-          READELF_FOR_TARGET: '@OPTION:arch@-unknown-proxima-readelf'
+          AR_FOR_TARGET: '@OPTION:arch@-@OPTION:triplet@-gcc-ar'
+          CC_FOR_TARGET: '@OPTION:arch@-@OPTION:triplet@-gcc'
+          LD_FOR_TARGET: '@OPTION:arch@-@OPTION:triplet@-ld'
+          OBJCOPY_FOR_TARGET: '@OPTION:arch@-@OPTION:triplet@-objcopy'
+          OBJDUMP_FOR_TARGET: '@OPTION:arch@-@OPTION:triplet@-objdump'
+          READELF_FOR_TARGET: '@OPTION:arch@-@OPTION:triplet@-readelf'
     compile:
       - args: ['make', '-j@PARALLELISM@']
     install:

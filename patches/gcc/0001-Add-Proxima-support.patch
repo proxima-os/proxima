@@ -1,45 +1,47 @@
-From 5f3409b19e887800afc062d5071c12b95190cc18 Mon Sep 17 00:00:00 2001
+From a60779049106a1751b41f205905c8b49e0b5607a Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Sat, 19 Apr 2025 12:58:00 +0200
 Subject: [PATCH] Add Proxima support
 
 ---
  fixincludes/mkfixinc.sh     |  1 +
- gcc/config.gcc              | 12 ++++++++++++
- gcc/config/i386/proxima.h   |  8 ++++++++
- gcc/config/proxima.h        | 38 +++++++++++++++++++++++++++++++++++++
- gcc/config/proxima.opt      | 29 ++++++++++++++++++++++++++++
- gcc/config/proxima.opt.urls |  5 +++++
+ gcc/config.gcc              | 20 ++++++++++++++++++++
+ gcc/config/hydrogen.h       | 25 +++++++++++++++++++++++++
+ gcc/config/i386/plibc.h     |  7 +++++++
+ gcc/config/plibc.h          | 28 ++++++++++++++++++++++++++++
+ gcc/config/plibc.opt        | 29 +++++++++++++++++++++++++++++
+ gcc/config/plibc.opt.urls   |  5 +++++
  libgcc/config.host          |  8 ++++++++
  libstdc++-v3/crossconfig.m4 |  7 +++++++
- 8 files changed, 108 insertions(+)
- create mode 100644 gcc/config/i386/proxima.h
- create mode 100644 gcc/config/proxima.h
- create mode 100644 gcc/config/proxima.opt
- create mode 100644 gcc/config/proxima.opt.urls
+ 9 files changed, 130 insertions(+)
+ create mode 100644 gcc/config/hydrogen.h
+ create mode 100644 gcc/config/i386/plibc.h
+ create mode 100644 gcc/config/plibc.h
+ create mode 100644 gcc/config/plibc.opt
+ create mode 100644 gcc/config/plibc.opt.urls
 
 diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
-index 7112f4dcd..6a2082275 100755
+index 7112f4dcd..d06475e45 100755
 --- a/fixincludes/mkfixinc.sh
 +++ b/fixincludes/mkfixinc.sh
 @@ -13,6 +13,7 @@ target=fixinc.sh
  case $machine in
      i?86-*-cygwin* | \
      *-mingw32* | \
-+    *-proxima* | \
++    *-plibc* | \
      powerpc-*-eabisim* | \
      powerpc-*-eabi*    | \
      powerpc-*-rtems*   | \
 diff --git a/gcc/config.gcc b/gcc/config.gcc
-index 40b50dc96..fda34d202 100644
+index 40b50dc96..f1a374744 100644
 --- a/gcc/config.gcc
 +++ b/gcc/config.gcc
 @@ -879,6 +879,15 @@ case ${target} in
    rust_target_objs="${rust_target_objs} freebsd-rust.o"
    target_has_targetrustm=yes
    ;;
-+*-*-proxima*)
-+  extra_options="$extra_options proxima.opt"
++*-*-plibc*)
++  extra_options="$extra_options plibc.opt"
 +  gas=yes
 +  gnu_ld=yes
 +  default_use_cxa_atexit=yes
@@ -50,49 +52,87 @@ index 40b50dc96..fda34d202 100644
  *-*-fuchsia*)
    native_system_header_dir=/include
    tmake_file="t-fuchsia"
-@@ -2320,6 +2329,9 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
+@@ -2320,6 +2329,17 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
  			;;
  	esac
  	;;
-+x86_64-*-proxima*)
-+	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h i386/x86-64.h proxima.h i386/proxima.h"
++x86_64-*-hydrogen*)
++	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h i386/x86-64.h"
++
++	case ${target} in
++		*-plibc*)
++			tm_file="${tm_file} plibc.h i386/plibc.h"
++			;;
++	esac
++
++	tm_file="${tm_file} hydrogen.h"
 +	;;
  x86_64-*-fuchsia*)
  	tmake_file="${tmake_file} i386/t-x86_64-elf"
  	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h fuchsia.h"
-diff --git a/gcc/config/i386/proxima.h b/gcc/config/i386/proxima.h
+diff --git a/gcc/config/hydrogen.h b/gcc/config/hydrogen.h
 new file mode 100644
-index 000000000..ca68f09f8
+index 000000000..e38d447c3
 --- /dev/null
-+++ b/gcc/config/i386/proxima.h
-@@ -0,0 +1,8 @@
++++ b/gcc/config/hydrogen.h
+@@ -0,0 +1,25 @@
++#undef TARGET_HYDROGEN
++#define TARGET_HYDROGEN 1
++
++#if TARGET_PLIBC
++#define HYDROGEN_BASE_LINK_SPEC PLIBC_LINK_SPEC
++#define HYDROGEN_STATIC_SPEC "static|static-pie"
++#define HYDROGEN_LIBC_DEFINE() builtin_define("__plibc__")
++#else
++#error "unknown libc"
++#endif
++
++/* if -static without -nostdlib, pass -lhydrogen *before* -static so that ld is allowed to use the shared version */
++#undef LINK_SPEC
++#define LINK_SPEC "%{" HYDROGEN_STATIC_SPEC ": %{!nostdlib: -lhydrogen}} " HYDROGEN_BASE_LINK_SPEC
++
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()            \
++    do {                                    \
++        HYDROGEN_LIBC_DEFINE();             \
++        builtin_define("__hydrogen__");     \
++        builtin_define("__unix__");         \
++        builtin_assert("system=hydrogen");  \
++        builtin_assert("system=unix");      \
++        builtin_assert("system=posix");     \
++    } while (0);
+diff --git a/gcc/config/i386/plibc.h b/gcc/config/i386/plibc.h
+new file mode 100644
+index 000000000..f069dc794
+--- /dev/null
++++ b/gcc/config/i386/plibc.h
+@@ -0,0 +1,7 @@
 +#undef ENDFILE_SPEC
-+#define ENDFILE_SPEC                                                                                                   \
-+    "%{mdaz-ftz:crtfastmath.o%s;Ofast|ffast-math|funsafe-math-optimizations:%{!shared:%{!mno-daz-ftz:crtfastmath.o%s}" \
-+    "}}"                                                                                                               \
-+    " %{mpc32:crtprec32.o%s}"                                                                                          \
-+    " %{mpc64:crtprec64.o%s}"                                                                                          \
-+    " %{mpc80:crtprec80.o%s}"                                                                                          \
-+    " " PROXIMA_ENDFILE_SPEC
-diff --git a/gcc/config/proxima.h b/gcc/config/proxima.h
++#define ENDFILE_SPEC                                                                                                     \
++    "%{mdaz-ftz:crtfastmath.o%s;Ofast|ffast-math|funsafe-math-optimizations:%{!shared:%{!mno-daz-ftz:crtfastmath.o%s}}}" \
++    " %{mpc32:crtprec32.o%s}"                                                                                            \
++    " %{mpc64:crtprec64.o%s}"                                                                                            \
++    " %{mpc80:crtprec80.o%s}"                                                                                            \
++    " " PLIBC_ENDFILE_SPEC
+diff --git a/gcc/config/plibc.h b/gcc/config/plibc.h
 new file mode 100644
-index 000000000..e83e5db1c
+index 000000000..4c3442c47
 --- /dev/null
-+++ b/gcc/config/proxima.h
-@@ -0,0 +1,38 @@
-+#undef TARGET_PROXIMA
-+#define TARGET_PROXIMA 1
++++ b/gcc/config/plibc.h
+@@ -0,0 +1,28 @@
++#undef TARGET_PLIBC
++#define TARGET_PLIBC 1
 +
 +#undef LIB_SPEC
 +#define LIB_SPEC "-lc"
 +
-+/* if -static without -nostdlib, pass -lhydrogen *before* -static so that ld is allowed to use the shared version */
-+#undef LINK_SPEC
-+#define LINK_SPEC                                                                       \
-+    "%{shared:-shared}"                                                                 \
-+    " %{static: %{!nostdlib: -lhydrogen} -static --no-dynamic-linker -z text}"          \
-+    " %{static-pie: %{!nostdlib: -lhydrogen} -static -pie --no-dynamic-linker -z text}" \
++#define PLIBC_LINK_SPEC                                        \
++    "%{shared:-shared}"                                        \
++    " %{static: -static --no-dynamic-linker -z text}"          \
++    " %{static-pie: -static -pie --no-dynamic-linker -z text}" \
 +    " %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
++#undef LINK_SPEC
++#define LINK_SPEC PLIBC_LINK_SPEC
 +
 +#undef LINK_EH_SPEC
 +#define LINK_EH_SPEC "%{!static|static-pie:--eh-frame-hdr} "
@@ -103,28 +143,18 @@ index 000000000..e83e5db1c
 +    " crti.o%s"            \
 +    " %{shared|static-pie|" PIE_SPEC ":crtbeginS.o%s;:crtbegin.o%s}"
 +
-+#define PROXIMA_ENDFILE_SPEC                                    \
++#define PLIBC_ENDFILE_SPEC                                      \
 +    "%{shared|static-pie|" PIE_SPEC ":crtendS.o%s;:crtend.o%s}" \
 +    " crtn.o%s"
 +#undef ENDFILE_SPEC
-+#define ENDFILE_SPEC PROXIMA_ENDFILE_SPEC
-+
-+#undef TARGET_OS_CPP_BUILTINS
-+#define TARGET_OS_CPP_BUILTINS()          \
-+    do {                                  \
-+        builtin_define("__proxima__");    \
-+        builtin_define("__unix__");       \
-+        builtin_assert("system=proxima"); \
-+        builtin_assert("system=unix");    \
-+        builtin_assert("system=posix");   \
-+    } while (0);
-diff --git a/gcc/config/proxima.opt b/gcc/config/proxima.opt
++#define ENDFILE_SPEC PLIBC_ENDFILE_SPEC
+diff --git a/gcc/config/plibc.opt b/gcc/config/plibc.opt
 new file mode 100644
-index 000000000..c0d021ecb
+index 000000000..b2edb440a
 --- /dev/null
-+++ b/gcc/config/proxima.opt
++++ b/gcc/config/plibc.opt
 @@ -0,0 +1,29 @@
-+; Options for Proxima
++; Options for plibc
 +
 +; Copyright (C) 2011-2024 Free Software Foundation, Inc.
 +;
@@ -153,26 +183,26 @@ index 000000000..c0d021ecb
 +Driver
 +
 +; This comment is to ensure we retain the blank line above.
-diff --git a/gcc/config/proxima.opt.urls b/gcc/config/proxima.opt.urls
+diff --git a/gcc/config/plibc.opt.urls b/gcc/config/plibc.opt.urls
 new file mode 100644
-index 000000000..15e15eeb2
+index 000000000..227919a2a
 --- /dev/null
-+++ b/gcc/config/proxima.opt.urls
++++ b/gcc/config/plibc.opt.urls
 @@ -0,0 +1,5 @@
-+; Autogenerated by regenerate-opt-urls.py from gcc/config/gnu-user.opt and generated HTML
++; Autogenerated by regenerate-opt-urls.py from gcc/config/plibc.opt and generated HTML
 +
 +rdynamic
 +UrlSuffix(gcc/Link-Options.html#index-rdynamic)
 +
 diff --git a/libgcc/config.host b/libgcc/config.host
-index 6a88ee5a2..c17edf9db 100644
+index 6a88ee5a2..a7fef9df6 100644
 --- a/libgcc/config.host
 +++ b/libgcc/config.host
 @@ -306,6 +306,10 @@ case ${host} in
        ;;
    esac
    ;;
-+*-*-proxima*)
++*-*-plibc*)
 +  tmake_file="$tmake_file t-crtstuff-pic t-slibgcc t-slibgcc-gld t-slibgcc-elf-ver t-libgcc-pic"
 +  extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
 +  ;;
@@ -183,7 +213,7 @@ index 6a88ee5a2..c17edf9db 100644
  	    ;;
  	esac
  	;;
-+x86_64-*-proxima*)
++x86_64-*-plibc*)
 +	extra_parts="$extra_parts crtprec32.o crtprec64.o crtprec80.o crtfastmath.o"
 +	tmake_file="$tmake_file i386/t-crtpc t-crtfm i386/t-crtstuff t-dfprules"
 +	;;
@@ -191,14 +221,14 @@ index 6a88ee5a2..c17edf9db 100644
  	tmake_file="$tmake_file t-libgcc-pic"
  	;;
 diff --git a/libstdc++-v3/crossconfig.m4 b/libstdc++-v3/crossconfig.m4
-index b3269cb88..963892920 100644
+index b3269cb88..a27c8428b 100644
 --- a/libstdc++-v3/crossconfig.m4
 +++ b/libstdc++-v3/crossconfig.m4
 @@ -136,6 +136,13 @@ case "${host}" in
      AC_CHECK_FUNCS(uselocale)
      ;;
  
-+  *-proxima*)
++  *-plibc*)
 +    GLIBCXX_CHECK_COMPILER_FEATURES
 +    GLIBCXX_CHECK_LINKER_FEATURES
 +    GLIBCXX_CHECK_MATH_SUPPORT
