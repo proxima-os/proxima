@@ -1,4 +1,4 @@
-From a60779049106a1751b41f205905c8b49e0b5607a Mon Sep 17 00:00:00 2001
+From e36f19359f32bb2e200dada3b12dc0f2c87cf883 Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Sat, 19 Apr 2025 12:58:00 +0200
 Subject: [PATCH] Add Proxima support
@@ -116,7 +116,7 @@ index 000000000..f069dc794
 +    " " PLIBC_ENDFILE_SPEC
 diff --git a/gcc/config/plibc.h b/gcc/config/plibc.h
 new file mode 100644
-index 000000000..4c3442c47
+index 000000000..2aa3a876f
 --- /dev/null
 +++ b/gcc/config/plibc.h
 @@ -0,0 +1,28 @@
@@ -139,7 +139,7 @@ index 000000000..4c3442c47
 +
 +#undef STARTFILE_SPEC
 +#define STARTFILE_SPEC     \
-+    "%{!shared: crt0.o%s}" \
++    "%{!shared: crt1.o%s}" \
 +    " crti.o%s"            \
 +    " %{shared|static-pie|" PIE_SPEC ":crtbeginS.o%s;:crtbegin.o%s}"
 +
