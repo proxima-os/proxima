@@ -18,11 +18,8 @@ packages:
           - '--cross-file=@BUILD_ROOT@/tools/host-meson/cross.txt'
           - '-Dprefix=/usr'
           - '-Dbuildtype=@OPTION:build-type@'
-          # disable lto because it has a buggy interaction with version scripts:
-          # with it enabled any libc code that references a global will fail to
-          # link in ld64.so unless the global is exported in the version script
-          #- '-Db_lto=@OPTION:lto@'
-          #- '-Db_lto_mode=thin'
+          - '-Db_lto=@OPTION:lto@'
+          - '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
           - '@THIS_SOURCE_DIR@'
     build:
