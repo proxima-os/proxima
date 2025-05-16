@@ -1,0 +1,22 @@
+sources:
+  - name: cmake
+    subdir: ports
+    git: 'https://github.com/Kitware/CMake.git'
+    tag: 'v4.0.2'
+    version: '4.0.2'
+
+tools:
+  - name: host-cmake
+    architecture: '@OPTION:arch@'
+    from_source: cmake
+    configure:
+      - args: ['@THIS_SOURCE_DIR@/bootstrap', '--parallel=@PARALLELISM@', '--prefix=@PREFIX@']
+    compile:
+      - args: ['make', '-j@PARALLELISM@']
+    install:
+      - args: ['make', '-j@PARALLELISM@', 'install']
+      - args:
+          - '@SOURCE_ROOT@/support/cross/cmake-x86_64.sh'
+          - '@PREFIX@/cross.cmake'
+          - '@SYSROOT_DIR@'
+          - '@OPTION:arch@-@OPTION:triplet@'

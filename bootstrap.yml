@@ -37,11 +37,13 @@ imports:
   - file: packages/autoconf.yml
   - file: packages/automake.yml
   - file: packages/binutils.yml
+  - file: packages/cmake.yml
   - file: packages/filesystem.yml
   - file: packages/gcc.yml
   - file: packages/hydrogen.yml
   - file: packages/libtool.yml
   - file: packages/limine.yml
+  - file: packages/llvm.yml
   - file: packages/meson.yml
   - file: packages/pkgconf.yml
   - file: packages/plibc.yml

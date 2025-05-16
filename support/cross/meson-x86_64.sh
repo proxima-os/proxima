@@ -14,7 +14,7 @@ ranlib = '$3-gcc-ranlib'
 strip = '$3-strip'
 
 [host_machine]
-system = 'proxima'
+system = 'hydrogen'
 cpu_family = 'x86_64'
 cpu = 'x86_64'
 endian = 'little'

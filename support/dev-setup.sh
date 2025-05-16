@@ -23,5 +23,5 @@ EOF
 
 xbstrap init ..
 "$dir/switch.sh" hydrogen
-xbstrap install-tool host-gdb host-limine
+xbstrap install-tool host-gdb host-limine host-llvm
 

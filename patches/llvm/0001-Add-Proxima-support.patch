@@ -1,0 +1,451 @@
+From 3b74afe50742af4565d202a573854fe673158c86 Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Fri, 16 May 2025 15:10:04 +0200
+Subject: [PATCH] Add Proxima support
+
+---
+ clang/lib/Basic/Targets.cpp              |   2 +
+ clang/lib/Basic/Targets/OSTargets.h      |  26 +++
+ clang/lib/Driver/CMakeLists.txt          |   1 +
+ clang/lib/Driver/Driver.cpp              |   4 +
+ clang/lib/Driver/ToolChains/Hydrogen.cpp | 220 +++++++++++++++++++++++
+ clang/lib/Driver/ToolChains/Hydrogen.h   |  54 ++++++
+ llvm/include/llvm/TargetParser/Triple.h  |   6 +-
+ llvm/lib/TargetParser/Triple.cpp         |   4 +
+ 8 files changed, 315 insertions(+), 2 deletions(-)
+ create mode 100644 clang/lib/Driver/ToolChains/Hydrogen.cpp
+ create mode 100644 clang/lib/Driver/ToolChains/Hydrogen.h
+
+diff --git a/clang/lib/Basic/Targets.cpp b/clang/lib/Basic/Targets.cpp
+index 281aebdb1..a5e9f9035 100644
+--- a/clang/lib/Basic/Targets.cpp
++++ b/clang/lib/Basic/Targets.cpp
+@@ -654,6 +654,8 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
+       return std::make_unique<PS5OSTargetInfo<X86_64TargetInfo>>(Triple, Opts);
+     case llvm::Triple::Hurd:
+       return std::make_unique<HurdTargetInfo<X86_64TargetInfo>>(Triple, Opts);
++    case llvm::Triple::Hydrogen:
++      return std::make_unique<HydrogenTargetInfo<X86_64TargetInfo>>(Triple, Opts);
+     default:
+       return std::make_unique<X86_64TargetInfo>(Triple, Opts);
+     }
+diff --git a/clang/lib/Basic/Targets/OSTargets.h b/clang/lib/Basic/Targets/OSTargets.h
+index 991efd2bd..7d2f5a4d6 100644
+--- a/clang/lib/Basic/Targets/OSTargets.h
++++ b/clang/lib/Basic/Targets/OSTargets.h
+@@ -330,6 +330,32 @@ public:
+   using OSTargetInfo<Target>::OSTargetInfo;
+ };
+ 
++// Hydrogen Target
++template <typename Target>
++class LLVM_LIBRARY_VISIBILITY HydrogenTargetInfo : public OSTargetInfo<Target> {
++protected:
++  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
++                    MacroBuilder &Builder) const override {
++                      Builder.defineMacro("__hydrogen__");
++                      Builder.defineMacro("__unix__");
++                      if (this->HasFloat128)
++                        Builder.defineMacro("__FLOAT128__");
++                    }
++
++public:
++  HydrogenTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
++  : OSTargetInfo<Target>(Triple, Opts) {
++    switch (Triple.getArch()) {
++      default:
++        break;
++      case llvm::Triple::x86:
++      case llvm::Triple::x86_64:
++        this->HasFloat128 = true;
++        break;
++    }
++  }
++};
++
+ // Linux target
+ template <typename Target>
+ class LLVM_LIBRARY_VISIBILITY LinuxTargetInfo : public OSTargetInfo<Target> {
+diff --git a/clang/lib/Driver/CMakeLists.txt b/clang/lib/Driver/CMakeLists.txt
+index 5bdb66143..605a291e5 100644
+--- a/clang/lib/Driver/CMakeLists.txt
++++ b/clang/lib/Driver/CMakeLists.txt
+@@ -64,6 +64,7 @@ add_clang_library(clangDriver
+   ToolChains/Hexagon.cpp
+   ToolChains/HLSL.cpp
+   ToolChains/Hurd.cpp
++  ToolChains/Hydrogen.cpp
+   ToolChains/Linux.cpp
+   ToolChains/MipsLinux.cpp
+   ToolChains/MinGW.cpp
+diff --git a/clang/lib/Driver/Driver.cpp b/clang/lib/Driver/Driver.cpp
+index 87855fdb7..7cb93536b 100644
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -28,6 +28,7 @@
+ #include "ToolChains/Haiku.h"
+ #include "ToolChains/Hexagon.h"
+ #include "ToolChains/Hurd.h"
++#include "ToolChains/Hydrogen.h"
+ #include "ToolChains/Lanai.h"
+ #include "ToolChains/Linux.h"
+ #include "ToolChains/MSP430.h"
+@@ -6717,6 +6718,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
+     case llvm::Triple::Hurd:
+       TC = std::make_unique<toolchains::Hurd>(*this, Target, Args);
+       break;
++    case llvm::Triple::Hydrogen:
++      TC = std::make_unique<toolchains::Hydrogen>(*this, Target, Args);
++      break;
+     case llvm::Triple::LiteOS:
+       TC = std::make_unique<toolchains::OHOS>(*this, Target, Args);
+       break;
+diff --git a/clang/lib/Driver/ToolChains/Hydrogen.cpp b/clang/lib/Driver/ToolChains/Hydrogen.cpp
+new file mode 100644
+index 000000000..6fc5aa155
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/Hydrogen.cpp
+@@ -0,0 +1,220 @@
++//===--- Hydrogen.h - Hydrogen ToolChain Implementations --------*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// This file is distributed under the University of Illinois Open Source
++// License. See LICENSE.TXT for details.
++//
++//===----------------------------------------------------------------------===//
++
++#include "Hydrogen.h"
++#include "Arch/ARM.h"
++#include "Arch/Mips.h"
++#include "Arch/PPC.h"
++#include "Arch/RISCV.h"
++#include "CommonArgs.h"
++#include "clang/Config/config.h"
++#include "clang/Driver/Distro.h"
++#include "clang/Driver/Driver.h"
++#include "clang/Driver/Options.h"
++#include "clang/Driver/SanitizerArgs.h"
++#include "llvm/Option/ArgList.h"
++#include "llvm/ProfileData/InstrProf.h"
++#include "llvm/Support/Path.h"
++#include <system_error>
++
++using namespace clang::driver;
++using namespace clang::driver::toolchains;
++using namespace clang;
++using namespace llvm::opt;
++
++using tools::addPathIfExists;
++
++/// \brief Get our best guess at the multiarch triple for a target.
++std::string Hydrogen::getMultiarchTriple(const Driver &D,
++                                         const llvm::Triple &TargetTriple,
++                                         StringRef SysRoot) const {
++  // For most architectures, just use whatever we have rather than trying to be
++  // clever.
++  switch (TargetTriple.getArch()) {
++  default:
++    break;
++
++  case llvm::Triple::x86_64:
++    // We don't want this for x32, otherwise it will match x86_64 libs
++    return "x86_64-hydrogen";
++  }
++  return TargetTriple.str();
++}
++
++static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
++  // It happens that only x86, PPC and SPARC use the 'lib32' variant of
++  // oslibdir, and using that variant while targeting other architectures causes
++  // problems because the libraries are laid out in shared system roots that
++  // can't cope with a 'lib32' library search path being considered. So we only
++  // enable them when we know we may need it.
++  //
++  // FIXME: This is a bit of a hack. We should really unify this code for
++  // reasoning about oslibdir spellings with the lib dir spellings in the
++  // GCCInstallationDetector, but that is a more significant refactoring.
++  if (Triple.getArch() == llvm::Triple::x86 || Triple.isPPC32() ||
++      Triple.getArch() == llvm::Triple::sparc)
++    return "lib32";
++
++  if (Triple.getArch() == llvm::Triple::x86_64 && Triple.isX32())
++    return "libx32";
++
++  if (Triple.getArch() == llvm::Triple::riscv32)
++    return "lib32";
++
++  return "lib";
++}
++
++Hydrogen::Hydrogen(const Driver &D, const llvm::Triple &Triple,
++                   const ArgList &Args)
++    : Generic_ELF(D, Triple, Args) {
++  GCCInstallation.init(Triple, Args);
++  Multilibs = GCCInstallation.getMultilibs();
++  SelectedMultilibs.assign({GCCInstallation.getMultilib()});
++  std::string SysRoot = computeSysRoot();
++
++  ToolChain::path_list &PPaths = getProgramPaths();
++  Generic_GCC::PushPPaths(PPaths);
++
++#ifdef ENABLE_LINKER_BUILD_ID
++  ExtraOpts.push_back("--build-id");
++#endif
++
++  // The selection of paths to try here is designed to match the patterns which
++  // the GCC driver itself uses, as this is part of the GCC-compatible driver.
++  // This was determined by running GCC in a fake filesystem, creating all
++  // possible permutations of these directories, and seeing which ones it added
++  // to the link paths.
++  path_list &Paths = getFilePaths();
++
++  const std::string OSLibDir = std::string(getOSLibDir(Triple, Args));
++  const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
++
++  Generic_GCC::AddMultilibPaths(D, SysRoot, OSLibDir, MultiarchTriple, Paths);
++
++  addPathIfExists(D, concat(SysRoot, "/lib", MultiarchTriple), Paths);
++  addPathIfExists(D, concat(SysRoot, "/lib/..", OSLibDir), Paths);
++  addPathIfExists(D, concat(SysRoot, "/usr/lib/", MultiarchTriple), Paths);
++  addPathIfExists(D, concat(SysRoot, "/usr/lib/../", OSLibDir), Paths);
++
++  Generic_GCC::AddMultiarchPaths(D, SysRoot, OSLibDir, Paths);
++
++  addPathIfExists(D, SysRoot + "/lib", Paths);
++  addPathIfExists(D, SysRoot + "/usr/lib", Paths);
++}
++
++bool Hydrogen::HasNativeLLVMSupport() const { return true; }
++
++Tool *Hydrogen::buildLinker() const {
++  return new tools::gnutools::Linker(*this);
++}
++
++Tool *Hydrogen::buildAssembler() const {
++  return new tools::gnutools::Assembler(*this);
++}
++
++std::string Hydrogen::computeSysRoot() const {
++  if (!getDriver().SysRoot.empty())
++    return getDriver().SysRoot;
++  return std::string();
++}
++
++std::string Hydrogen::getDynamicLinker(const ArgList &Args) const {
++  switch (getTriple().getArch()) {
++  case llvm::Triple::x86_64:
++    return "/lib/ld64.so";
++  default:
++    llvm_unreachable("unsupported architecture");
++  }
++}
++
++void Hydrogen::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
++                                         ArgStringList &CC1Args) const {
++  const Driver &D = getDriver();
++  std::string SysRoot = computeSysRoot();
++
++  if (DriverArgs.hasArg(clang::driver::options::OPT_nostdinc))
++    return;
++
++  if (!DriverArgs.hasArg(options::OPT_nostdlibinc))
++    return;
++
++  addSystemInclude(DriverArgs, CC1Args, SysRoot + "/usr/local/include");
++
++  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
++    SmallString<128> P(D.ResourceDir);
++    llvm::sys::path::append(P, "include");
++    addSystemInclude(DriverArgs, CC1Args, P);
++  }
++
++  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
++    return;
++
++  // LOCAL_INCLUDE_DIR
++  addSystemInclude(DriverArgs, CC1Args, concat(SysRoot, "/usr/local/include"));
++  // TOOL_INCLUDE_DIR
++  AddMultilibIncludeArgs(DriverArgs, CC1Args);
++
++  // Check for configure-time C include directories.
++  StringRef CIncludeDirs(C_INCLUDE_DIRS);
++  if (CIncludeDirs != "") {
++    SmallVector<StringRef, 5> dirs;
++    CIncludeDirs.split(dirs, ":");
++    for (StringRef dir : dirs) {
++      StringRef Prefix =
++          llvm::sys::path::is_absolute(dir) ? StringRef(SysRoot) : "";
++      addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
++    }
++    return;
++  }
++
++  // On systems using multiarch and Android, add /usr/include/$triple before
++  // /usr/include.
++  std::string MultiarchIncludeDir = getMultiarchTriple(D, getTriple(), SysRoot);
++  if (!MultiarchIncludeDir.empty() &&
++      D.getVFS().exists(concat(SysRoot, "/usr/include", MultiarchIncludeDir)))
++    addExternCSystemInclude(
++        DriverArgs, CC1Args,
++        concat(SysRoot, "/usr/include", MultiarchIncludeDir));
++
++  // Add an include of '/include' directly. This isn't provided by default by
++  // system GCCs, but is often used with cross-compiling GCCs, and harmless to
++  // add even when Clang is acting as-if it were a system compiler.
++  addExternCSystemInclude(DriverArgs, CC1Args, concat(SysRoot, "/include"));
++
++  addExternCSystemInclude(DriverArgs, CC1Args, concat(SysRoot, "/usr/include"));
++}
++
++void Hydrogen::addLibStdCxxIncludePaths(
++    const llvm::opt::ArgList &DriverArgs,
++    llvm::opt::ArgStringList &CC1Args) const {
++  // We need a detected GCC installation on Hydrogen to provide libstdc++'s
++  // headers.
++  if (!GCCInstallation.isValid())
++    return;
++
++  StringRef TripleStr = GCCInstallation.getTriple().str();
++
++  // Try generic GCC detection.
++  Generic_GCC::addGCCLibStdCxxIncludePaths(DriverArgs, CC1Args, TripleStr);
++}
++
++SanitizerMask Hydrogen::getSupportedSanitizers() const {
++  const bool IsX86 = getTriple().getArch() == llvm::Triple::x86;
++  const bool IsX86_64 = getTriple().getArch() == llvm::Triple::x86_64;
++  SanitizerMask Res = ToolChain::getSupportedSanitizers();
++  Res |= SanitizerKind::PointerCompare;
++  Res |= SanitizerKind::PointerSubtract;
++  Res |= SanitizerKind::KernelAddress;
++  Res |= SanitizerKind::Vptr;
++  if (IsX86_64)
++    Res |= SanitizerKind::KernelMemory;
++  if (IsX86 || IsX86_64)
++    Res |= SanitizerKind::Function;
++  return Res;
++}
+diff --git a/clang/lib/Driver/ToolChains/Hydrogen.h b/clang/lib/Driver/ToolChains/Hydrogen.h
+new file mode 100644
+index 000000000..e494e5c2d
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/Hydrogen.h
+@@ -0,0 +1,54 @@
++//===--- Hydrogen.h - Hydrogen ToolChain Implementations --------*- C++ -*-===//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// This file is distributed under the University of Illinois Open Source
++// License. See LICENSE.TXT for details.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_HYDROGEN_H
++#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_HYDROGEN_H
++
++#include "Gnu.h"
++#include "clang/Driver/ToolChain.h"
++
++namespace clang {
++namespace driver {
++namespace toolchains {
++
++class LLVM_LIBRARY_VISIBILITY Hydrogen : public Generic_ELF {
++public:
++  Hydrogen(const Driver &D, const llvm::Triple &Triple,
++           const llvm::opt::ArgList &Args);
++
++  bool HasNativeLLVMSupport() const override;
++
++  std::string getMultiarchTriple(const Driver &D,
++                                 const llvm::Triple &TargetTriple,
++                                 StringRef SysRoot) const override;
++
++  void
++  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
++                            llvm::opt::ArgStringList &CC1Args) const override;
++  void
++  addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
++                           llvm::opt::ArgStringList &CC1Args) const override;
++  SanitizerMask getSupportedSanitizers() const override;
++  virtual std::string computeSysRoot() const override;
++
++  virtual std::string
++  getDynamicLinker(const llvm::opt::ArgList &Args) const override;
++
++  std::vector<std::string> ExtraOpts;
++
++protected:
++  Tool *buildAssembler() const override;
++  Tool *buildLinker() const override;
++};
++
++} // end namespace toolchains
++} // end namespace driver
++} // end namespace clang
++
++#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_HYDROGEN_H
+diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
+index 7d67966d1..56717c9de 100644
+--- a/llvm/include/llvm/TargetParser/Triple.h
++++ b/llvm/include/llvm/TargetParser/Triple.h
+@@ -239,7 +239,8 @@ public:
+     LiteOS,
+     Serenity,
+     Vulkan, // Vulkan SPIR-V
+-    LastOSType = Vulkan
++    Hydrogen,
++    LastOSType = Hydrogen
+   };
+   enum EnvironmentType {
+     UnknownEnvironment,
+@@ -302,7 +303,8 @@ public:
+ 
+     PAuthTest,
+ 
+-    LastEnvironmentType = PAuthTest
++    Plibc,
++    LastEnvironmentType = Plibc
+   };
+   enum ObjectFormatType {
+     UnknownObjectFormat,
+diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
+index e9e6f130f..49763e4b3 100644
+--- a/llvm/lib/TargetParser/Triple.cpp
++++ b/llvm/lib/TargetParser/Triple.cpp
+@@ -319,6 +319,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
+   case LiteOS: return "liteos";
+   case XROS: return "xros";
+   case Vulkan: return "vulkan";
++  case Hydrogen: return "hydrogen";
+   }
+ 
+   llvm_unreachable("Invalid OSType");
+@@ -384,6 +385,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
+     return "pauthtest";
+   case LLVM:
+     return "llvm";
++  case Plibc: return "plibc";
+   }
+ 
+   llvm_unreachable("Invalid EnvironmentType!");
+@@ -711,6 +713,7 @@ static Triple::OSType parseOS(StringRef OSName) {
+     .StartsWith("liteos", Triple::LiteOS)
+     .StartsWith("serenity", Triple::Serenity)
+     .StartsWith("vulkan", Triple::Vulkan)
++    .StartsWith("hydrogen", Triple::Hydrogen)
+     .Default(Triple::UnknownOS);
+ }
+ 
+@@ -766,6 +769,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
+       .StartsWith("ohos", Triple::OpenHOS)
+       .StartsWith("pauthtest", Triple::PAuthTest)
+       .StartsWith("llvm", Triple::LLVM)
++      .StartsWith("plibc", Triple::Plibc)
+       .Default(Triple::UnknownEnvironment);
+ }
+ 
+-- 
+2.49.0
+

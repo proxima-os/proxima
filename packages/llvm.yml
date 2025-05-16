@@ -1,0 +1,25 @@
+sources:
+  - name: llvm
+    subdir: ports
+    git: 'https://github.com/llvm/llvm-project.git'
+    tag: 'llvmorg-20.1.5'
+    version: '20.1.5'
+
+tools:
+  - name: host-llvm
+    architecture: '@OPTION:arch@'
+    from_source: llvm
+    tools_required:
+      - host-cmake
+    configure:
+      - args:
+          - '@SOURCE_ROOT@/support/llvm/configure-host.sh'
+          - '@THIS_SOURCE_DIR@'
+          - '@PREFIX@'
+          - '@OPTION:arch@'
+          - '@OPTION:triplet@'
+          - '@SYSROOT_DIR@'
+    compile:
+      - args: ['cmake', '--build', '.', '--parallel=@PARALLELISM@']
+    install:
+      - args: ['cmake', '--install', '.', '--parallel=@PARALLELISM@']
