@@ -1,21 +1,36 @@
-From 3b74afe50742af4565d202a573854fe673158c86 Mon Sep 17 00:00:00 2001
+From d772861f04df53a5a36f70263f14c7474c10505e Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Fri, 16 May 2025 15:10:04 +0200
 Subject: [PATCH] Add Proxima support
 
 ---
+ clang/include/clang/Basic/TargetInfo.h   |   3 +-
  clang/lib/Basic/Targets.cpp              |   2 +
  clang/lib/Basic/Targets/OSTargets.h      |  26 +++
  clang/lib/Driver/CMakeLists.txt          |   1 +
  clang/lib/Driver/Driver.cpp              |   4 +
  clang/lib/Driver/ToolChains/Hydrogen.cpp | 220 +++++++++++++++++++++++
  clang/lib/Driver/ToolChains/Hydrogen.h   |  54 ++++++
- llvm/include/llvm/TargetParser/Triple.h  |   6 +-
+ llvm/include/llvm/TargetParser/Triple.h  |  11 +-
  llvm/lib/TargetParser/Triple.cpp         |   4 +
- 8 files changed, 315 insertions(+), 2 deletions(-)
+ 9 files changed, 322 insertions(+), 3 deletions(-)
  create mode 100644 clang/lib/Driver/ToolChains/Hydrogen.cpp
  create mode 100644 clang/lib/Driver/ToolChains/Hydrogen.h
 
+diff --git a/clang/include/clang/Basic/TargetInfo.h b/clang/include/clang/Basic/TargetInfo.h
+index 1a8398d44..b27f9931f 100644
+--- a/clang/include/clang/Basic/TargetInfo.h
++++ b/clang/include/clang/Basic/TargetInfo.h
+@@ -1518,7 +1518,8 @@ public:
+       return true;
+     return getTriple().isOSBinFormatELF() &&
+            ((getTriple().isOSLinux() && !getTriple().isMusl()) ||
+-            getTriple().isOSFreeBSD());
++            getTriple().isOSFreeBSD() ||
++            getTriple().isPlibc());
+   }
+ 
+   // Identify whether this target supports __builtin_cpu_supports and
 diff --git a/clang/lib/Basic/Targets.cpp b/clang/lib/Basic/Targets.cpp
 index 281aebdb1..a5e9f9035 100644
 --- a/clang/lib/Basic/Targets.cpp
@@ -387,7 +402,7 @@ index 000000000..e494e5c2d
 +
 +#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_HYDROGEN_H
 diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
-index 7d67966d1..56717c9de 100644
+index 7d67966d1..2d49e18a6 100644
 --- a/llvm/include/llvm/TargetParser/Triple.h
 +++ b/llvm/include/llvm/TargetParser/Triple.h
 @@ -239,7 +239,8 @@ public:
@@ -410,6 +425,18 @@ index 7d67966d1..56717c9de 100644
    };
    enum ObjectFormatType {
      UnknownObjectFormat,
+@@ -827,6 +829,11 @@ public:
+            getEnvironment() == Triple::OpenHOS || isOSLiteOS();
+   }
+ 
++  // Tests whether the environment is plibc
++  bool isPlibc() const {
++    return getEnvironment() == Triple::Plibc;
++  }
++
+   /// Tests whether the target is OHOS
+   /// LiteOS default enviroment is also OHOS, but omited on triple.
+   bool isOHOSFamily() const { return isOpenHOS() || isOSLiteOS(); }
 diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
 index e9e6f130f..49763e4b3 100644
 --- a/llvm/lib/TargetParser/Triple.cpp
