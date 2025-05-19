@@ -20,7 +20,7 @@ interface_resolution: 640x480x32
     protocol: limine
     kernel_path: boot():/hydrogen
     cmdline: debugcon
-    module_path: boot():/init
+    module_path: boot():/proxima.tar
     resolution: 640x480x32
 EOF
 

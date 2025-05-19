@@ -15,7 +15,10 @@
             "miDebuggerPath": "${workspaceFolder}/support/gdb.sh",
             "setupCommands": [
                 {
-                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libhydrogen.so -o 0x2000"
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/bin/init -o 0x1000"
+                },
+                {
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libhydrogen.so -o 0x10000"
                 }
             ],
             "preLaunchTask": "Proxima: rebuild active package",
