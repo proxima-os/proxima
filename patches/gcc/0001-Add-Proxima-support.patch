@@ -1,4 +1,4 @@
-From e36f19359f32bb2e200dada3b12dc0f2c87cf883 Mon Sep 17 00:00:00 2001
+From ce0aff4945eb706b77d1bcd269a6aa6dd53781c7 Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Sat, 19 Apr 2025 12:58:00 +0200
 Subject: [PATCH] Add Proxima support
@@ -7,13 +7,13 @@ Subject: [PATCH] Add Proxima support
  fixincludes/mkfixinc.sh     |  1 +
  gcc/config.gcc              | 20 ++++++++++++++++++++
  gcc/config/hydrogen.h       | 25 +++++++++++++++++++++++++
- gcc/config/i386/plibc.h     |  7 +++++++
+ gcc/config/i386/plibc.h     |  9 +++++++++
  gcc/config/plibc.h          | 28 ++++++++++++++++++++++++++++
  gcc/config/plibc.opt        | 29 +++++++++++++++++++++++++++++
  gcc/config/plibc.opt.urls   |  5 +++++
  libgcc/config.host          |  8 ++++++++
  libstdc++-v3/crossconfig.m4 |  7 +++++++
- 9 files changed, 130 insertions(+)
+ 9 files changed, 132 insertions(+)
  create mode 100644 gcc/config/hydrogen.h
  create mode 100644 gcc/config/i386/plibc.h
  create mode 100644 gcc/config/plibc.h
@@ -103,10 +103,10 @@ index 000000000..e38d447c3
 +    } while (0);
 diff --git a/gcc/config/i386/plibc.h b/gcc/config/i386/plibc.h
 new file mode 100644
-index 000000000..f069dc794
+index 000000000..996b99f7e
 --- /dev/null
 +++ b/gcc/config/i386/plibc.h
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,9 @@
 +#undef ENDFILE_SPEC
 +#define ENDFILE_SPEC                                                                                                     \
 +    "%{mdaz-ftz:crtfastmath.o%s;Ofast|ffast-math|funsafe-math-optimizations:%{!shared:%{!mno-daz-ftz:crtfastmath.o%s}}}" \
@@ -114,6 +114,8 @@ index 000000000..f069dc794
 +    " %{mpc64:crtprec64.o%s}"                                                                                            \
 +    " %{mpc80:crtprec80.o%s}"                                                                                            \
 +    " " PLIBC_ENDFILE_SPEC
++
++#define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 diff --git a/gcc/config/plibc.h b/gcc/config/plibc.h
 new file mode 100644
 index 000000000..2aa3a876f
@@ -195,7 +197,7 @@ index 000000000..227919a2a
 +UrlSuffix(gcc/Link-Options.html#index-rdynamic)
 +
 diff --git a/libgcc/config.host b/libgcc/config.host
-index 6a88ee5a2..a7fef9df6 100644
+index 6a88ee5a2..40950abbb 100644
 --- a/libgcc/config.host
 +++ b/libgcc/config.host
 @@ -306,6 +306,10 @@ case ${host} in
@@ -204,7 +206,7 @@ index 6a88ee5a2..a7fef9df6 100644
    ;;
 +*-*-plibc*)
 +  tmake_file="$tmake_file t-crtstuff-pic t-slibgcc t-slibgcc-gld t-slibgcc-elf-ver t-libgcc-pic"
-+  extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
++  extra_parts="$extra_parts crtbegin.o crtbeginS.o crtend.o crtendS.o"
 +  ;;
  *-*-fuchsia*)
    tmake_file="$tmake_file t-crtstuff-pic t-libgcc-pic t-eh-dw2-dip t-slibgcc t-slibgcc-fuchsia"
