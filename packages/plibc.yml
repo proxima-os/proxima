@@ -18,8 +18,9 @@ packages:
           - '--cross-file=@BUILD_ROOT@/tools/host-meson/cross.txt'
           - '-Dprefix=/usr'
           - '-Dbuildtype=@OPTION:build-type@'
-          - '-Db_lto=@OPTION:lto@'
-          - '-Db_lto_mode=thin'
+          # Don't use LTO for plibc, as it seems to result in spurious linking errors when combined with version scripts.
+          #- '-Db_lto=@OPTION:lto@'
+          #- '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
           - '@THIS_SOURCE_DIR@'
     build:

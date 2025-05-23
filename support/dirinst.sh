@@ -14,14 +14,12 @@ mkdir -p "$1/EFI/BOOT"
 cp "$limine"/*.EFI "$1/EFI/BOOT"
 cat > "$1/limine.conf" << EOF
 timeout: 0
-interface_resolution: 640x480x32
 
 /Proxima
     protocol: limine
     kernel_path: boot():/hydrogen
     cmdline: debugcon
     module_path: boot():/proxima.tar
-    resolution: 640x480x32
 EOF
 
 cp -r "$sysroot/boot/." "$1"
