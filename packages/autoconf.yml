@@ -14,7 +14,7 @@ sources:
     version: '2.69'
 
 tools:
-  - name: host-autoconf
+  - name: autoconf
     architecture: noarch
     from_source: autoconf
     configure:
@@ -23,7 +23,7 @@ tools:
       - args: ['make', '-j@PARALLELISM@']
     install:
       - args: ['make', '-j@PARALLELISM@', 'install']
-  - name: host-autoconf-2.69
+  - name: autoconf-2.69
     architecture: noarch
     from_source: autoconf-2.69
     configure:

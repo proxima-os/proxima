@@ -136,4 +136,5 @@ a new one.
 
 #### Tips
 
-- Installing the `host-meson` tool generates a Meson toolchain file at `@BUILD_ROOT@/tools/host-meson/cross.txt`.
+- Installing the `meson` tool generates a Meson toolchain file at `@BUILD_ROOT@/tools/meson/cross.txt`.
+- Installing the `cmake` tool generates a CMake toolchain file at `@BUILD_ROOT@/tools/meson/cross.cmake`.

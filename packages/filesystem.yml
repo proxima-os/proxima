@@ -10,7 +10,6 @@ packages:
           - 'mkdir'
           - '-p'
           - '@THIS_COLLECT_DIR@/usr/bin'
-          - '@THIS_COLLECT_DIR@/usr/include'
           - '@THIS_COLLECT_DIR@/usr/lib'
       - args: ['ln', '-sf', 'bin', '@THIS_COLLECT_DIR@/usr/sbin']
       - args: ['ln', '-sf', 'usr/bin', 'usr/lib', 'usr/sbin', '@THIS_COLLECT_DIR@']

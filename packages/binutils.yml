@@ -5,9 +5,9 @@ sources:
     tag: 'binutils-2_44'
     version: '2.44'
     tools_required:
-      - host-autoconf-2.69
-      - host-automake
-      - host-libtool
+      - autoconf-2.69
+      - automake
+      - libtool
     regenerate:
       # Can't use support/autoconf/regenerate.sh because some directories need to be excluded
       - args: |
@@ -16,7 +16,7 @@ sources:
                   | sort -z | xargs -0 autoreconf -fvi '-I@THIS_SOURCE_DIR@/config'
 
 tools:
-  - name: host-binutils
+  - name: binutils
     architecture: '@OPTION:arch@'
     from_source: binutils
     configure:
@@ -31,7 +31,7 @@ tools:
       - args: ['make', '-j@PARALLELISM@', 'MAKEINFO=true']
     install:
       - args: ['make', '-j@PARALLELISM@', 'MAKEINFO=true', 'install']
-  - name: host-gdb
+  - name: gdb
     architecture: '@OPTION:arch@'
     from_source: binutils
     configure:

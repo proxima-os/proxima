@@ -6,18 +6,19 @@ packages:
       subdir: sources
       version: '0.0pl@ROLLING_ID@'
     tools_required:
-      - host-gcc-bootstrap
-      - host-meson
+      - gcc-bootstrap
+      - meson
     configure:
       - args:
           - 'meson'
           - 'setup'
-          - '--cross-file=@BUILD_ROOT@/tools/host-meson/cross.txt'
+          - '--cross-file=@BUILD_ROOT@/tools/meson/cross.txt'
           - '-Dprefix=/usr'
           - '-Dbuildtype=@OPTION:build-type@'
           - '-Db_lto=@OPTION:lto@'
           - '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
+          - '-Ddebug=true'
           - '@THIS_SOURCE_DIR@'
     build:
       - args: ['meson', 'compile', '-j@PARALLELISM@']

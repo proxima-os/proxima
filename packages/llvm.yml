@@ -6,11 +6,11 @@ sources:
     version: '20.1.5'
 
 tools:
-  - name: host-llvm
+  - name: llvm
     architecture: '@OPTION:arch@'
     from_source: llvm
     tools_required:
-      - host-cmake
+      - cmake
     configure:
       - args:
           - '@SOURCE_ROOT@/support/llvm/configure-host.sh'

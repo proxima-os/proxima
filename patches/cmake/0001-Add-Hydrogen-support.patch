@@ -1,7 +1,7 @@
-From c727544bfe903ff2fb1134f7779f23a75f8af56a Mon Sep 17 00:00:00 2001
+From 07e58662f8d3f1b1adea0bb4a54b2edd79c29750 Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Fri, 16 May 2025 13:33:11 +0200
-Subject: [PATCH] Add Proxima support
+Subject: [PATCH] Add Hydrogen support
 
 ---
  Modules/Platform/Hydrogen.cmake | 1 +

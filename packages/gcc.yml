@@ -5,18 +5,18 @@ sources:
     tag: 'releases/gcc-15.1.0'
     version: '15.1.0'
     tools_required:
-      - host-autoconf-2.69
-      - host-automake
-      - host-libtool
+      - autoconf-2.69
+      - automake
+      - libtool
     regenerate:
       - args: ['@SOURCE_ROOT@/support/autoconf/regenerate.sh', '-I@THIS_SOURCE_DIR@/config']
 
 tools:
-  - name: host-gcc-bootstrap
+  - name: gcc-bootstrap
     architecture: '@OPTION:arch@'
     from_source: gcc
     tools_required:
-      - tool: host-binutils
+      - tool: binutils
         recursive: true
     configure:
       - args:
@@ -25,18 +25,54 @@ tools:
           - '--target=@OPTION:arch@-@OPTION:triplet@'
           - '--with-sysroot=@SYSROOT_DIR@'
           - '--disable-nls'
-          - '--enable-languages=c'
+          - '--enable-languages=c,c++'
           - '--enable-default-pie'
           - '--disable-frame-pointer'
           - '--without-headers'
           - '--disable-shared'
           - '--disable-threads'
-    compile:
-      - args: ['make', '-j@PARALLELISM@', 'inhibit_libc=true', 'all-gcc', 'all-target-libgcc']
-    install:
-      - args: ['make', '-j@PARALLELISM@', 'install-gcc', 'install-target-libgcc']
-      - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin']
-      - args: ['ln', '-sf', '../../../host-binutils/@OPTION:arch@-@OPTION:triplet@/bin/as',
-                            '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/as']
-      - args: ['ln', '-sf', '../../../host-binutils/@OPTION:arch@-@OPTION:triplet@/bin/ld',
-                            '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/ld']
+          - '--disable-hosted-libstdcxx'
+    stages:
+      - name: all
+        pkgs_required:
+          - mlibc-headers
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-gcc', 'all-target-libgcc', 'all-target-libstdc++-v3']
+        install:
+          - args: ['make', '-j@PARALLELISM@', 'install-gcc', 'install-target-libgcc', 'install-target-libstdc++-v3']
+          - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin']
+          - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/as',
+                                '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/as']
+          - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/ld',
+                                '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/ld']
+  - name: gcc
+    architecture: '@OPTION:arch@'
+    from_source: gcc
+    tools_required:
+      - tool: binutils
+        recursive: true
+    configure:
+      - args:
+          - '@THIS_SOURCE_DIR@/configure'
+          - '--prefix=@PREFIX@'
+          - '--target=@OPTION:arch@-@OPTION:triplet@'
+          - '--with-sysroot=@SYSROOT_DIR@'
+          - '--disable-nls'
+          - '--enable-languages=c,c++'
+          - '--enable-default-pie'
+          - '--disable-frame-pointer'
+          - '--enable-shared'
+          - '--enable-threads=posix'
+    stages:
+      - name: all
+        pkgs_required:
+          - mlibc
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-gcc', 'all-target-libgcc', 'all-target-libstdc++-v3']
+        install:
+          - args: ['make', '-j@PARALLELISM@', 'install-gcc', 'install-target-libgcc', 'install-target-libstdc++-v3']
+          - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin']
+          - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/as',
+                                '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/as']
+          - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/ld',
+                                '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/ld']

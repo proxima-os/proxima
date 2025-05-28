@@ -8,11 +8,11 @@ sources:
     extract_path: 'limine-9.3.1'
 
 tools:
-  - name: host-limine
+  - name: limine
     architecture: '@OPTION:arch@'
     from_source: limine
     tools_required:
-      - host-gcc-bootstrap
+      - gcc-bootstrap
     configure:
       - args: |
           do_config () {

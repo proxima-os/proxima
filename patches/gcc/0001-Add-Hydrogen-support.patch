@@ -1,0 +1,152 @@
+From 5f5dcb23c1c92cf2f365a09003449bb72feec5f6 Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Sat, 19 Apr 2025 12:58:00 +0200
+Subject: [PATCH] Add Hydrogen support
+
+---
+ fixincludes/mkfixinc.sh     |  3 ++-
+ gcc/config.gcc              | 15 +++++++++++++++
+ gcc/config/hydrogen.h       | 24 ++++++++++++++++++++++++
+ gcc/config/i386/hydrogen.h  |  3 +++
+ libgcc/config.host          |  8 ++++++++
+ libstdc++-v3/crossconfig.m4 | 10 ++++++++++
+ 6 files changed, 62 insertions(+), 1 deletion(-)
+ create mode 100644 gcc/config/hydrogen.h
+ create mode 100644 gcc/config/i386/hydrogen.h
+
+diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
+index 7112f4dcd..b87988977 100755
+--- a/fixincludes/mkfixinc.sh
++++ b/fixincludes/mkfixinc.sh
+@@ -19,7 +19,8 @@ case $machine in
+     powerpcle-*-eabisim* | \
+     powerpcle-*-eabi* | \
+     *-*-vxworks7* | \
+-    *-musl* )
++    *-musl* | \
++    *-mlibc* )
+ 	#  IF there is no include fixing,
+ 	#  THEN create a no-op fixer and exit
+ 	(echo "#! /bin/sh" ; echo "exit 0" ) > ${target}
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index 40b50dc96..36384ccaa 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -879,6 +879,18 @@ case ${target} in
+   rust_target_objs="${rust_target_objs} freebsd-rust.o"
+   target_has_targetrustm=yes
+   ;;
++*-*-mlibc*)
++  extra_options="$extra_options gnu-user.opt"
++  gas=yes
++  gnu_ld=yes
++  default_use_cxa_atexit=yes
++  default_gnu_indirect_function=yes
++  use_gcc_stdint=wrap
++  tmake_file="${tmake_file} t-slibgcc"
++  case ${enable_threads} in
++    "" | yes | posix) thread_file='posix' ;;
++  esac
++  ;;
+ *-*-fuchsia*)
+   native_system_header_dir=/include
+   tmake_file="t-fuchsia"
+@@ -2320,6 +2332,9 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
+ 			;;
+ 	esac
+ 	;;
++x86_64-*-hydrogen*)
++	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h gnu-user.h glibc-stdint.h i386/x86-64.h i386/gnu-user-common.h i386/gnu-user64.h hydrogen.h i386/hydrogen.h"
++	;;
+ x86_64-*-fuchsia*)
+ 	tmake_file="${tmake_file} i386/t-x86_64-elf"
+ 	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h fuchsia.h"
+diff --git a/gcc/config/hydrogen.h b/gcc/config/hydrogen.h
+new file mode 100644
+index 000000000..71ec8d735
+--- /dev/null
++++ b/gcc/config/hydrogen.h
+@@ -0,0 +1,24 @@
++#undef TARGET_HYDROGEN
++#define TARGET_HYDROGEN 1
++
++#undef LIB_SPEC
++#define LIB_SPEC "-lc"
++
++/* if -static without -nostdlib, pass -lhydrogen *before* -static so that ld is allowed to use the shared version */
++#undef LINK_SPEC
++#define LINK_SPEC "%{static|static-pie: %{!nostdlib: -lhydrogen}} " GNU_USER_TARGET_LINK_SPEC
++
++#define GNU_USER_DYNAMIC_LINKER "/usr/lib/ld.so"
++#define GNU_USER_DYNAMIC_LINKER32 "/usr/lib/ld.so"
++#define GNU_USER_DYNAMIC_LINKER64 "/usr/lib/ld.so"
++#define GNU_USER_DYNAMIC_LINKERX32 "/usr/lib/ld.so"
++
++#undef GNU_USER_TARGET_OS_CPP_BUILTINS
++#define GNU_USER_TARGET_OS_CPP_BUILTINS()  \
++    do {                                   \
++        builtin_define_std("hydrogen");    \
++        builtin_define_std("unix");        \
++        builtin_assert("system=hydrogen"); \
++        builtin_assert("system=unix");     \
++        builtin_assert("system=posix");    \
++    } while (0);
+diff --git a/gcc/config/i386/hydrogen.h b/gcc/config/i386/hydrogen.h
+new file mode 100644
+index 000000000..e562230fd
+--- /dev/null
++++ b/gcc/config/i386/hydrogen.h
+@@ -0,0 +1,3 @@
++#define GNU_USER_LINK_EMULATION32 "elf_i386"
++#define GNU_USER_LINK_EMULATION64 "elf_x86_64"
++#define GNU_USER_LINK_EMULATIONX32 "elf32_x86_64"
+diff --git a/libgcc/config.host b/libgcc/config.host
+index 6a88ee5a2..d850f79a3 100644
+--- a/libgcc/config.host
++++ b/libgcc/config.host
+@@ -306,6 +306,10 @@ case ${host} in
+       ;;
+   esac
+   ;;
++*-*-mlibc*)
++  tmake_file="$tmake_file t-crtstuff-pic t-slibgcc t-slibgcc-gld t-slibgcc-elf-ver t-libgcc-pic"
++  extra_parts="$extra_parts crtbegin.o crtbeginS.o crtbeginT.o crtend.o crtendS.o"
++  ;;
+ *-*-fuchsia*)
+   tmake_file="$tmake_file t-crtstuff-pic t-libgcc-pic t-eh-dw2-dip t-slibgcc t-slibgcc-fuchsia"
+   extra_parts="crtbegin.o crtend.o"
+@@ -764,6 +768,10 @@ x86_64-*-elf* | x86_64-*-rtems*)
+ 	    ;;
+ 	esac
+ 	;;
++x86_64-*-mlibc*)
++	extra_parts="$extra_parts crtprec32.o crtprec64.o crtprec80.o crtfastmath.o"
++	tmake_file="$tmake_file i386/t-crtpc t-crtfm i386/t-crtstuff t-dfprules"
++	;;
+ x86_64-*-fuchsia*)
+ 	tmake_file="$tmake_file t-libgcc-pic"
+ 	;;
+diff --git a/libstdc++-v3/crossconfig.m4 b/libstdc++-v3/crossconfig.m4
+index b3269cb88..8a654d22d 100644
+--- a/libstdc++-v3/crossconfig.m4
++++ b/libstdc++-v3/crossconfig.m4
+@@ -136,6 +136,16 @@ case "${host}" in
+     AC_CHECK_FUNCS(uselocale)
+     ;;
+ 
++  *-mlibc*)
++    GLIBCXX_CHECK_COMPILER_FEATURES
++    GLIBCXX_CHECK_LINKER_FEATURES
++    GLIBCXX_CHECK_MATH_SUPPORT
++    GLIBCXX_CHECK_STDLIB_SUPPORT
++    GCC_CHECK_TLS
++    AC_CHECK_FUNCS(aligned_alloc posix_memalign memalign _aligned_malloc)
++    AC_CHECK_FUNCS(timespec_get)
++    ;;
++
+   *-fuchsia*)
+     SECTION_FLAGS='-ffunction-sections -fdata-sections'
+     AC_SUBST(SECTION_FLAGS)
+-- 
+2.49.0
+

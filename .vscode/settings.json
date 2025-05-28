@@ -1,7 +1,8 @@
 {
     "clangd.path": "${workspaceFolder}/support/clangd.sh",
     "clangd.arguments": [
-        "${workspaceFolder}/build"
+        "${workspaceFolder}/build",
+        "--header-insertion=never"
     ],
     "mesonbuild.configureOnOpen": false,
     "mesonbuild.selectRootDir": false,

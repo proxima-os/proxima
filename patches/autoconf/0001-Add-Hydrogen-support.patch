@@ -1,0 +1,60 @@
+From 7e3ef5beb81df200bd52d0132a9980b5d4e6660a Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Fri, 16 May 2025 12:00:21 +0200
+Subject: [PATCH] Add Hydrogen support
+
+---
+ build-aux/config.guess | 3 +++
+ build-aux/config.sub   | 8 +++++++-
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/build-aux/config.guess b/build-aux/config.guess
+index cdfc439..002d65d 100755
+--- a/build-aux/config.guess
++++ b/build-aux/config.guess
+@@ -979,6 +979,9 @@ EOF
+     *:Minix:*:*)
+ 	GUESS=$UNAME_MACHINE-unknown-minix
+ 	;;
++    *:Hydrogen:*:*)
++	GUESS="$UNAME_MACHINE-unknown-hydrogen-mlibc"
++	;;
+     aarch64:Linux:*:*)
+ 	set_cc_for_build
+ 	CPU=$UNAME_MACHINE
+diff --git a/build-aux/config.sub b/build-aux/config.sub
+index defe52c..0d53c34 100755
+--- a/build-aux/config.sub
++++ b/build-aux/config.sub
+@@ -146,7 +146,7 @@ case $1 in
+ 			| uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* \
+ 			| netbsd*-eabi* | kopensolaris*-gnu* | cloudabi*-eabi* \
+ 			| storm-chaos* | os2-emx* | rtmk-nova* | managarm-* \
+-			| windows-* )
++			| windows-* | hydrogen-* )
+ 				basic_machine=$field1
+ 				basic_os=$maybe_os
+ 				;;
+@@ -1325,6 +1325,10 @@ EOF
+ 		kernel=managarm
+ 		os=`echo "$basic_os" | sed -e 's|managarm|mlibc|'`
+ 		;;
++	hydrogen*)
++		kernel=hydrogen
++		os=`echo "$basic_os" | sed -e 's|hydrogen|mlibc|'`
++		;;
+ 	*)
+ 		kernel=
+ 		os=$basic_os
+@@ -1825,6 +1829,8 @@ case $kernel-$os-$obj in
+ 		;;
+ 	managarm-mlibc*- | managarm-kernel*- )
+ 		;;
++	hydrogen-mlibc*-)
++		;;
+ 	windows*-msvc*-)
+ 		;;
+ 	-dietlibc*- | -newlib*- | -musl*- | -relibc*- | -uclibc*- | -mlibc*- )
+-- 
+2.49.0
+

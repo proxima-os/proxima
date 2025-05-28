@@ -1,0 +1,62 @@
+sources:
+  - name: frigg
+    subdir: ports
+    git: 'https://github.com/managarm/frigg.git'
+    branch: master
+    commit: 0434eebab59f10d9b3e87c11fada62b5d999f8ca
+    rolling_version: true
+    version: '0.0pl@ROLLING_ID@'
+  - name: mlibc
+    subdir: sources
+    version: '0.0pl@ROLLING_ID@'
+    sources_required:
+      - frigg
+    regenerate:
+      - args: ['ln', '-sf', '../../../ports/frigg', '@THIS_SOURCE_DIR@/subprojects/frigg']
+
+packages:
+  - name: mlibc-headers
+    implict_package: true
+    architecture: '@OPTION:arch@'
+    from_source: mlibc
+    tools_required:
+      - meson
+    configure:
+      - args:
+          - 'meson'
+          - 'setup'
+          - '--cross-file=@BUILD_ROOT@/tools/meson/cross.txt'
+          - '-Dprefix=/usr'
+          - '-Dbuildtype=@OPTION:build-type@'
+          - '-Db_lto=@OPTION:lto@'
+          - '-Db_lto_mode=thin'
+          - '-Db_ndebug=if-release'
+          - '-Dheaders_only=true'
+          - '@THIS_SOURCE_DIR@'
+    build:
+      - args: ['meson', 'install', '--destdir=@THIS_COLLECT_DIR@']
+  - name: mlibc
+    implict_package: true
+    architecture: '@OPTION:arch@'
+    from_source: mlibc
+    pkgs_required:
+      - filesystem
+      - hydrogen
+      - mlibc-headers
+    tools_required:
+      - gcc-bootstrap
+      - meson
+    configure:
+      - args:
+          - 'meson'
+          - 'setup'
+          - '--cross-file=@BUILD_ROOT@/tools/meson/cross.txt'
+          - '-Dprefix=/usr'
+          - '-Dbuildtype=@OPTION:build-type@'
+          - '-Db_lto=@OPTION:lto@'
+          - '-Db_lto_mode=thin'
+          - '-Db_ndebug=if-release'
+          - '-Dno_headers=true'
+          - '@THIS_SOURCE_DIR@'
+    build:
+      - args: ['meson', 'install', '--destdir=@THIS_COLLECT_DIR@']

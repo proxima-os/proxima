@@ -13,7 +13,7 @@ pkg="$(readlink compile_commands.json)"
 pkg="${pkg%/*}"
 pkg="${pkg##*/}"
 
-exec xbstrap lsp "$pkg" --extra-tools host-llvm -- \
+exec xbstrap lsp "$pkg" --extra-tools llvm -- \
         env 'HOME=@BUILD_ROOT@/clangd' 'XDG_CACHE_HOME=@BUILD_ROOT@/clangd/cache' \
         clangd --background-index '--compile-commands-dir=@THIS_BUILD_DIR@' --query-driver='**/*' \
                 --path-mappings '@HOST_BUILD_ROOT@=@BUILD_ROOT@,@HOST_SOURCE_ROOT@=@SOURCE_ROOT@' \

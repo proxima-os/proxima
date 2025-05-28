@@ -9,7 +9,7 @@ fi
 
 sysroot=system-root
 
-limine="$(xbstrap runtool host-limine -- limine --print-datadir)"
+limine="$(xbstrap runtool limine -- limine --print-datadir)"
 mkdir -p "$1/EFI/BOOT"
 cp "$limine"/*.EFI "$1/EFI/BOOT"
 cat > "$1/limine.conf" << EOF

@@ -6,7 +6,7 @@ sources:
     version: '4.0.2'
 
 tools:
-  - name: host-cmake
+  - name: cmake
     architecture: '@OPTION:arch@'
     from_source: cmake
     configure:

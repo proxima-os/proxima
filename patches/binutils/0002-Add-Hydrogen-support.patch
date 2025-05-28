@@ -1,7 +1,7 @@
-From 6970d561f9578c76bce6fc4d6db1f12ca79ac7f7 Mon Sep 17 00:00:00 2001
+From e5828505a699b06b7baf24bc791f37f828c65df0 Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Sun, 26 Jan 2025 09:41:49 +0100
-Subject: [PATCH 2/2] Add Proxima support
+Subject: [PATCH 2/2] Add Hydrogen support
 
 ---
  bfd/config.bfd    | 5 +++++

@@ -1,24 +1,25 @@
-From 20065e8fcf05477b43b57d33856a3758e66d97c7 Mon Sep 17 00:00:00 2001
+From d9850c288a20c5296b36c852f9771745243772e9 Mon Sep 17 00:00:00 2001
 From: monkuous <84319635+monkuous@users.noreply.github.com>
 Date: Fri, 16 May 2025 15:10:04 +0200
-Subject: [PATCH] Add Proxima support
+Subject: [PATCH] Add Hydrogen support
 
 ---
  clang/include/clang/Basic/TargetInfo.h   |   3 +-
  clang/lib/Basic/Targets.cpp              |   2 +
- clang/lib/Basic/Targets/OSTargets.h      |  26 +++
+ clang/lib/Basic/Targets/OSTargets.h      |  30 ++++
  clang/lib/Driver/CMakeLists.txt          |   1 +
  clang/lib/Driver/Driver.cpp              |   4 +
+ clang/lib/Driver/ToolChains/Gnu.cpp      |   3 +-
  clang/lib/Driver/ToolChains/Hydrogen.cpp | 220 +++++++++++++++++++++++
  clang/lib/Driver/ToolChains/Hydrogen.h   |  54 ++++++
  llvm/include/llvm/TargetParser/Triple.h  |  11 +-
  llvm/lib/TargetParser/Triple.cpp         |   4 +
- 9 files changed, 322 insertions(+), 3 deletions(-)
+ 10 files changed, 328 insertions(+), 4 deletions(-)
  create mode 100644 clang/lib/Driver/ToolChains/Hydrogen.cpp
  create mode 100644 clang/lib/Driver/ToolChains/Hydrogen.h
 
 diff --git a/clang/include/clang/Basic/TargetInfo.h b/clang/include/clang/Basic/TargetInfo.h
-index 1a8398d44..b27f9931f 100644
+index 1a8398d44..e4d1ce124 100644
 --- a/clang/include/clang/Basic/TargetInfo.h
 +++ b/clang/include/clang/Basic/TargetInfo.h
 @@ -1518,7 +1518,8 @@ public:
@@ -27,7 +28,7 @@ index 1a8398d44..b27f9931f 100644
             ((getTriple().isOSLinux() && !getTriple().isMusl()) ||
 -            getTriple().isOSFreeBSD());
 +            getTriple().isOSFreeBSD() ||
-+            getTriple().isPlibc());
++            getTriple().isMlibc());
    }
  
    // Identify whether this target supports __builtin_cpu_supports and
@@ -45,10 +46,10 @@ index 281aebdb1..a5e9f9035 100644
        return std::make_unique<X86_64TargetInfo>(Triple, Opts);
      }
 diff --git a/clang/lib/Basic/Targets/OSTargets.h b/clang/lib/Basic/Targets/OSTargets.h
-index 991efd2bd..7d2f5a4d6 100644
+index 991efd2bd..a4c71e131 100644
 --- a/clang/lib/Basic/Targets/OSTargets.h
 +++ b/clang/lib/Basic/Targets/OSTargets.h
-@@ -330,6 +330,32 @@ public:
+@@ -330,6 +330,36 @@ public:
    using OSTargetInfo<Target>::OSTargetInfo;
  };
  
@@ -58,11 +59,15 @@ index 991efd2bd..7d2f5a4d6 100644
 +protected:
 +  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
 +                    MacroBuilder &Builder) const override {
-+                      Builder.defineMacro("__hydrogen__");
-+                      Builder.defineMacro("__unix__");
-+                      if (this->HasFloat128)
-+                        Builder.defineMacro("__FLOAT128__");
-+                    }
++    DefineStd(Builder, "unix", Opts);
++    DefineStd(Builder, "hydrogen", Opts);
++    if (Opts.POSIXThreads)
++      Builder.defineMacro("_REENTRANT");
++    if (Opts.CPlusPlus)
++      Builder.defineMacro("_GNU_SOURCE");
++    if (this->HasFloat128)
++      Builder.defineMacro("__FLOAT128__");
++  }
 +
 +public:
 +  HydrogenTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
@@ -115,9 +120,23 @@ index 87855fdb7..7cb93536b 100644
      case llvm::Triple::LiteOS:
        TC = std::make_unique<toolchains::OHOS>(*this, Target, Args);
        break;
+diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
+index f56eeda3c..df818bd91 100644
+--- a/clang/lib/Driver/ToolChains/Gnu.cpp
++++ b/clang/lib/Driver/ToolChains/Gnu.cpp
+@@ -2445,7 +2445,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
+       "x86_64-pc-linux-gnu",    "x86_64-redhat-linux6E",
+       "x86_64-redhat-linux",    "x86_64-suse-linux",
+       "x86_64-manbo-linux-gnu", "x86_64-slackware-linux",
+-      "x86_64-unknown-linux",   "x86_64-amazon-linux"};
++      "x86_64-unknown-linux",   "x86_64-amazon-linux",
++      "x86_64-unknown-hydrogen-mlibc",};
+   static const char *const X32Triples[] = {"x86_64-linux-gnux32",
+                                            "x86_64-pc-linux-gnux32"};
+   static const char *const X32LibDirs[] = {"/libx32", "/lib"};
 diff --git a/clang/lib/Driver/ToolChains/Hydrogen.cpp b/clang/lib/Driver/ToolChains/Hydrogen.cpp
 new file mode 100644
-index 000000000..6fc5aa155
+index 000000000..291b24fae
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/Hydrogen.cpp
 @@ -0,0 +1,220 @@
@@ -165,7 +184,7 @@ index 000000000..6fc5aa155
 +
 +  case llvm::Triple::x86_64:
 +    // We don't want this for x32, otherwise it will match x86_64 libs
-+    return "x86_64-hydrogen";
++    return "x86_64-unknown-hydrogen-" + TargetTriple.getEnvironmentName().str();
 +  }
 +  return TargetTriple.str();
 +}
@@ -190,7 +209,7 @@ index 000000000..6fc5aa155
 +  if (Triple.getArch() == llvm::Triple::riscv32)
 +    return "lib32";
 +
-+  return "lib";
++  return Triple.isArch32Bit() ? "lib" : "lib64";
 +}
 +
 +Hydrogen::Hydrogen(const Driver &D, const llvm::Triple &Triple,
@@ -250,7 +269,7 @@ index 000000000..6fc5aa155
 +std::string Hydrogen::getDynamicLinker(const ArgList &Args) const {
 +  switch (getTriple().getArch()) {
 +  case llvm::Triple::x86_64:
-+    return "/lib/ld64.so";
++    return "/usr/lib/ld.so";
 +  default:
 +    llvm_unreachable("unsupported architecture");
 +  }
@@ -402,7 +421,7 @@ index 000000000..e494e5c2d
 +
 +#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_HYDROGEN_H
 diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
-index 7d67966d1..2d49e18a6 100644
+index 7d67966d1..a35577492 100644
 --- a/llvm/include/llvm/TargetParser/Triple.h
 +++ b/llvm/include/llvm/TargetParser/Triple.h
 @@ -239,7 +239,8 @@ public:
@@ -420,8 +439,8 @@ index 7d67966d1..2d49e18a6 100644
      PAuthTest,
  
 -    LastEnvironmentType = PAuthTest
-+    Plibc,
-+    LastEnvironmentType = Plibc
++    Mlibc,
++    LastEnvironmentType = Mlibc
    };
    enum ObjectFormatType {
      UnknownObjectFormat,
@@ -429,16 +448,16 @@ index 7d67966d1..2d49e18a6 100644
             getEnvironment() == Triple::OpenHOS || isOSLiteOS();
    }
  
-+  // Tests whether the environment is plibc
-+  bool isPlibc() const {
-+    return getEnvironment() == Triple::Plibc;
++  // Tests whether the environment is mlibc
++  bool isMlibc() const {
++    return getEnvironment() == Triple::Mlibc;
 +  }
 +
    /// Tests whether the target is OHOS
    /// LiteOS default enviroment is also OHOS, but omited on triple.
    bool isOHOSFamily() const { return isOpenHOS() || isOSLiteOS(); }
 diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
-index e9e6f130f..49763e4b3 100644
+index e9e6f130f..db93bd0cc 100644
 --- a/llvm/lib/TargetParser/Triple.cpp
 +++ b/llvm/lib/TargetParser/Triple.cpp
 @@ -319,6 +319,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
@@ -453,7 +472,7 @@ index e9e6f130f..49763e4b3 100644
      return "pauthtest";
    case LLVM:
      return "llvm";
-+  case Plibc: return "plibc";
++  case Mlibc: return "mlibc";
    }
  
    llvm_unreachable("Invalid EnvironmentType!");
@@ -469,7 +488,7 @@ index e9e6f130f..49763e4b3 100644
        .StartsWith("ohos", Triple::OpenHOS)
        .StartsWith("pauthtest", Triple::PAuthTest)
        .StartsWith("llvm", Triple::LLVM)
-+      .StartsWith("plibc", Triple::Plibc)
++      .StartsWith("mlibc", Triple::Mlibc)
        .Default(Triple::UnknownEnvironment);
  }
  

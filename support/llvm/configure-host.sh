@@ -11,7 +11,7 @@ case "$3" in
         ;;
 esac
 
-cmake "$1/llvm"                                          \
+cmake "$1/llvm" -GNinja                                  \
     -DCMAKE_INSTALL_PREFIX="$2"                          \
     -DCMAKE_BUILD_TYPE=Release                           \
     -DLLVM_LINK_LLVM_DYLIB=ON                            \

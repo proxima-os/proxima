@@ -8,7 +8,7 @@ sources:
     version: '2.3.0'
 
 tools:
-  - name: host-pkgconf
+  - name: pkgconf
     architecture: '@OPTION:arch@'
     from_source: pkgconf
     configure:

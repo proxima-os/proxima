@@ -10,14 +10,14 @@ declare_options:
   - name: lto
     default: 'true'
   - name: triplet
-    default: unknown-hydrogen-plibc
+    default: unknown-hydrogen-mlibc
 
 tasks:
   - name: make-iso
     pkgs_required:
       - proxima
     tools_required:
-      - host-limine
+      - limine
     args: ['@SOURCE_ROOT@/support/mkiso.sh', 'proxima.iso']
     workdir: '@BUILD_ROOT@'
   - name: qemu-kvm
@@ -45,7 +45,7 @@ imports:
   - file: packages/limine.yml
   - file: packages/llvm.yml
   - file: packages/meson.yml
+  - file: packages/mlibc.yml
   - file: packages/pkgconf.yml
-  - file: packages/plibc.yml
   - file: packages/proxima.yml
   - file: packages/proxima-init.yml
