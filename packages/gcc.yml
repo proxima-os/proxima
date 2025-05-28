@@ -33,18 +33,28 @@ tools:
           - '--disable-threads'
           - '--disable-hosted-libstdcxx'
     stages:
-      - name: all
+      - name: compiler
         pkgs_required:
           - mlibc-headers
         compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-gcc', 'all-target-libgcc', 'all-target-libstdc++-v3']
+          - args: ['make', '-j@PARALLELISM@', 'all-gcc']
         install:
-          - args: ['make', '-j@PARALLELISM@', 'install-gcc', 'install-target-libgcc', 'install-target-libstdc++-v3']
+          - args: ['make', '-j@PARALLELISM@', 'install-gcc']
           - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin']
           - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/as',
                                 '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/as']
           - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/ld',
                                 '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/ld']
+      - name: support
+        pkgs_required:
+          - hydrogen
+        tools_required:
+          - tool: gcc-bootstrap
+            stage_dependencies: [compiler]
+        compile:
+          - args: ['make', '-j@PARALLELISM@', 'all-target-libgcc', 'all-target-libstdc++-v3']
+        install:
+          - args: ['make', '-j@PARALLELISM@', 'install-target-libgcc', 'install-target-libstdc++-v3']
   - name: gcc
     architecture: '@OPTION:arch@'
     from_source: gcc

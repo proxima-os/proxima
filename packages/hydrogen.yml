@@ -6,7 +6,8 @@ packages:
       subdir: sources
       version: '0.0pl@ROLLING_ID@'
     tools_required:
-      - gcc-bootstrap
+      - tool: gcc-bootstrap
+        stage_dependencies: [compiler]
       - meson
     configure:
       - args:
