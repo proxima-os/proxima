@@ -1,13 +1,16 @@
 #include "acpi.h"
 #include "acpi/kernel-api.h"
+#include "compiler.h"
 #include "main.h"
 #include "pci/pci.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <hydrogen/thread.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <uacpi/event.h>
 #include <uacpi/sleep.h>
 #include <uacpi/uacpi.h>
@@ -72,7 +75,12 @@ void acpi_init(void) {
         exit(EXIT_FAILURE);
     }
 
-    // TODO: Pin this thread on CPU 0 to make uacpi_kernel_schedule_work fully compliant.
+    uint64_t bitmask = 1;
+    int error = hydrogen_thread_set_cpu_affinity(&bitmask, 1);
+    if (unlikely(error)) {
+        fprintf(stderr, "devicesd: failed to pin daemon to cpu 0: %s\n", strerror(error));
+        exit(EXIT_FAILURE);
+    }
 
     uacpi_status status = uacpi_initialize(0);
     if (uacpi_unlikely_error(status)) {
