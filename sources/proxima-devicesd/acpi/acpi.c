@@ -17,6 +17,7 @@
 #include <uacpi/utilities.h>
 
 int gsi_fd;
+int isa_irq_fd = -1;
 
 static void do_shutdown(void *ctx) {
     (void)ctx;
@@ -72,6 +73,12 @@ void acpi_init(void) {
     gsi_fd = open("/dev/acpi/gsi", O_RDWR);
     if (gsi_fd < 0) {
         perror("devicesd: failed to open /dev/acpi/gsi");
+        exit(EXIT_FAILURE);
+    }
+
+    isa_irq_fd = open("/dev/isa-irq", O_RDWR);
+    if (isa_irq_fd < 0 && errno != ENOENT) {
+        perror("devicesd: failed to open /dev/isa-irq");
         exit(EXIT_FAILURE);
     }
 

@@ -22,6 +22,7 @@ packages:
           - '-Db_lto=@OPTION:lto@'
           - '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
+          - '-Ddebug=true'
           - '@THIS_SOURCE_DIR@'
     build:
       - args: ['meson', 'compile', '-j@PARALLELISM@']
