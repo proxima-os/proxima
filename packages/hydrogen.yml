@@ -5,6 +5,8 @@ packages:
     source:
       subdir: sources
       version: '0.0pl@ROLLING_ID@'
+      regenerate:
+        - args: ['ln', '-sf', '../../uacpi', 'subprojects/uacpi']
     tools_required:
       - tool: gcc-bootstrap
         stage_dependencies: [compiler]
@@ -14,12 +16,12 @@ packages:
           - 'meson'
           - 'setup'
           - '--cross-file=@BUILD_ROOT@/tools/meson/cross.txt'
+          - '--wrap-mode=nodownload'
           - '-Dprefix=/usr'
           - '-Dbuildtype=@OPTION:build-type@'
           - '-Db_lto=@OPTION:lto@'
           - '-Db_lto_mode=thin'
           - '-Db_ndebug=if-release'
-          - '-Ddebug=true'
           - '@THIS_SOURCE_DIR@'
     build:
       - args: ['meson', 'compile', '-j@PARALLELISM@']

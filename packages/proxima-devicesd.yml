@@ -1,11 +1,9 @@
 packages:
-  - name: proxima-init
+  - name: proxima-devicesd
     architecture: '@OPTION:arch@'
     source:
       subdir: sources
       version: '0.0pl@ROLLING_ID@'
-    pkgs_required:
-      - proxima-devicesd
     tools_required:
       - gcc
       - meson

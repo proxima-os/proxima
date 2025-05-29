@@ -48,4 +48,5 @@ imports:
   - file: packages/mlibc.yml
   - file: packages/pkgconf.yml
   - file: packages/proxima.yml
+  - file: packages/proxima-devicesd.yml
   - file: packages/proxima-init.yml

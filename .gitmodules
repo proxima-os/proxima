@@ -4,3 +4,6 @@
 [submodule "sources/mlibc"]
 	path = sources/mlibc
 	url = ../mlibc.git
+[submodule "sources/uacpi"]
+	path = sources/uacpi
+	url = ../uacpi.git
