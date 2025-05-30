@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <hydrogen/eventqueue.h>
+#include <hydrogen/filesystem.h>
 #include <hydrogen/handle.h>
 #include <hydrogen/interrupt.h>
 #include <hydrogen/ioctl-data.h>
@@ -33,13 +34,83 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
     return UACPI_STATUS_OK;
 }
 
-void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
-    uacpi_phys_addr offset = addr & (hydrogen_page_size - 1);
-    addr &= ~(hydrogen_page_size - 1);
-    len = (len + offset + (hydrogen_page_size - 1)) & ~(hydrogen_page_size - 1);
+static uacpi_size page_align(uacpi_size value) {
+    return (value + (hydrogen_page_size - 1)) & ~(hydrogen_page_size - 1);
+}
 
-    void *ptr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, addr);
-    return ptr != MAP_FAILED ? ptr + offset : NULL;
+#define MAP_FLAGS \
+    (HYDROGEN_MEM_READ | HYDROGEN_MEM_WRITE | HYDROGEN_MEM_SHARED | HYDROGEN_MEM_EXACT | HYDROGEN_MEM_OVERWRITE)
+
+void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
+    if (unlikely(len == 0)) return (void *)1;
+
+    uacpi_phys_addr offset = addr & (hydrogen_page_size - 1);
+    uacpi_size aligned_len = page_align(offset + len);
+
+    hydrogen_ret_t ret = hydrogen_vmm_map(
+        HYDROGEN_THIS_VMM,
+        0,
+        aligned_len,
+        HYDROGEN_MEM_LAZY_RESERVE,
+        HYDROGEN_INVALID_HANDLE,
+        0
+    );
+    if (unlikely(ret.error)) return UACPI_NULL;
+    uintptr_t area = ret.integer;
+    uintptr_t virt = area + offset;
+
+    uacpi_phys_addr tail = addr + (len - 1);
+
+    do {
+        hydrogen_ioctl_mem_next_ram_range_t data = {.input.address = addr};
+        ret = hydrogen_fs_ioctl(mem_fd, __IOCTL_MEM_NEXT_RAM_RANGE, &data, sizeof(data));
+
+        if (ret.error) {
+            if (unlikely(ret.error != ENOENT)) goto err;
+            data.output.start = UINT64_MAX;
+            data.output.size = 1;
+            data.output.kernel_owned = false;
+        }
+
+        if (addr < data.output.start) {
+            uacpi_phys_addr cur_tail = data.output.start - 1;
+            if (cur_tail > tail) cur_tail = tail;
+            uacpi_size cur_len = cur_tail - addr + 1;
+            uacpi_size map_len = page_align(cur_len + offset);
+
+            ret = hydrogen_fs_mmap(
+                mem_fd,
+                HYDROGEN_THIS_VMM,
+                area,
+                map_len,
+                MAP_FLAGS | HYDROGEN_MEM_TYPE_DEVICE_NO_COMBINE_REORDER_EARLY,
+                addr - offset
+            );
+            if (unlikely(ret.error)) goto err;
+
+            addr += cur_len;
+            area += map_len;
+            offset = 0;
+            if (addr >= tail) break;
+        }
+
+        uacpi_phys_addr cur_tail = data.output.start + (data.output.size - 1);
+        if (cur_tail > tail) cur_tail = tail;
+        uacpi_size cur_len = cur_tail - addr + 1;
+        uacpi_size map_len = page_align(cur_len + offset);
+
+        ret = hydrogen_fs_mmap(mem_fd, HYDROGEN_THIS_VMM, area, map_len, MAP_FLAGS, addr - offset);
+        if (unlikely(ret.error)) goto err;
+
+        addr += cur_len;
+        area += map_len;
+        offset = 0;
+    } while (addr < tail);
+
+    return (void *)virt;
+err:
+    hydrogen_vmm_unmap(HYDROGEN_THIS_VMM, area, aligned_len);
+    return UACPI_NULL;
 }
 
 void uacpi_kernel_unmap(void *addr, uacpi_size len) {

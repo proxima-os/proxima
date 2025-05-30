@@ -18,7 +18,7 @@
                     "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/bin/proxima-devicesd -o 0x1000"
                 },
                 {
-                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libc.so -o 0xbec000"
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libc.so -o 0xbef000"
                 }
             ],
             "preLaunchTask": "Proxima: rebuild active package",
