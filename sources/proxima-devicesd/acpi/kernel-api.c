@@ -548,7 +548,12 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
     uacpi_interrupt_t *data = uacpi_kernel_alloc_zeroed(sizeof(*data));
     if (unlikely(!data)) return UACPI_STATUS_OUT_OF_MEMORY;
 
-    hydrogen_ioctl_irq_open_t args = {.irq = irq, .active_low = true, .level_triggered = true};
+    hydrogen_ioctl_irq_open_t args = {
+        .irq = irq,
+        .active_low = true,
+        .level_triggered = true,
+        .flags = HYDROGEN_HANDLE_CLONE_KEEP,
+    };
     data->base.handle = ioctl(i8259_fd >= 0 ? i8259_fd : gsi_fd, __IOCTL_IRQ_OPEN, &args);
     if (unlikely(data->base.handle < 0)) {
         uacpi_kernel_free(data, sizeof(*data));

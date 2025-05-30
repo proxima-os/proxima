@@ -70,13 +70,13 @@ void acpi_init(void) {
 
     fclose(file);
 
-    gsi_fd = open("/dev/acpi/gsi", O_RDWR);
+    gsi_fd = open("/dev/acpi/gsi", O_RDWR | O_CLOEXEC);
     if (gsi_fd < 0) {
         perror("devicesd: failed to open /dev/acpi/gsi");
         exit(EXIT_FAILURE);
     }
 
-    i8259_fd = open("/dev/i8259", O_RDWR);
+    i8259_fd = open("/dev/i8259", O_RDWR | O_CLOEXEC);
     if (i8259_fd < 0 && errno != ENOENT) {
         perror("devicesd: failed to open /dev/i8259");
         exit(EXIT_FAILURE);

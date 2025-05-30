@@ -5,11 +5,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <hydrogen/eventqueue.h>
+#include <hydrogen/handle.h>
 #include <hydrogen/interrupt.h>
 #include <hydrogen/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifdef __x86_64__
 #include <hydrogen/x86_64/io.h>
@@ -20,7 +22,7 @@ int event_queue;
 bool disable_interrupts;
 
 static void setup_hw_access(void) {
-    mem_fd = open("/dev/mem", O_RDWR);
+    mem_fd = open("/dev/mem", O_RDWR | O_CLOEXEC);
     if (mem_fd < 0) {
         perror("devicesd: failed to open /dev/mem");
         exit(EXIT_FAILURE);
@@ -36,7 +38,7 @@ static void setup_hw_access(void) {
 }
 
 static void setup_events(void) {
-    hydrogen_ret_t queue = hydrogen_event_queue_create(0);
+    hydrogen_ret_t queue = hydrogen_event_queue_create(HYDROGEN_HANDLE_CLONE_KEEP);
     if (queue.error) {
         fprintf(stderr, "devicesd: failed to create event queue (%s)\n", strerror(queue.error));
         exit(EXIT_FAILURE);
@@ -48,6 +50,11 @@ int main(void) {
     setup_hw_access();
     setup_events();
     acpi_init();
+
+    if (daemon(1, 1)) {
+        perror("devicesd: daemon failed");
+        return EXIT_FAILURE;
+    }
 
     for (;;) {
         process_events(0);
