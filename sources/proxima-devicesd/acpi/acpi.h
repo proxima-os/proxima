@@ -4,7 +4,7 @@
 #include <uacpi/types.h>
 
 extern int gsi_fd;
-extern int isa_irq_fd;
+extern int i8259_fd;
 
 void acpi_init(void);
 

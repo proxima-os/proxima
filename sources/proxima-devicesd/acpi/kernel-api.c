@@ -527,9 +527,9 @@ typedef struct {
     uacpi_handle ctx;
 } uacpi_interrupt_t;
 
-static bool handle_uacpi_interrupt(irq_handler_t *ptr) {
+static void handle_uacpi_interrupt(irq_handler_t *ptr) {
     uacpi_interrupt_t *self = (uacpi_interrupt_t *)ptr;
-    return self->handler(self->ctx) == UACPI_INTERRUPT_HANDLED;
+    self->handler(self->ctx);
 }
 
 uacpi_status uacpi_kernel_install_interrupt_handler(
@@ -542,7 +542,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
     if (unlikely(!data)) return UACPI_STATUS_OUT_OF_MEMORY;
 
     hydrogen_ioctl_irq_open_t args = {.irq = irq, .active_low = true, .level_triggered = true};
-    data->base.handle = ioctl(isa_irq_fd >= 0 ? isa_irq_fd : gsi_fd, __IOCTL_IRQ_OPEN, &args);
+    data->base.handle = ioctl(i8259_fd >= 0 ? i8259_fd : gsi_fd, __IOCTL_IRQ_OPEN, &args);
     if (unlikely(data->base.handle < 0)) {
         uacpi_kernel_free(data, sizeof(*data));
         return os_to_acpi_error(errno);

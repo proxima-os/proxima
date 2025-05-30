@@ -8,7 +8,7 @@ extern int event_queue;
 extern bool disable_interrupts;
 
 typedef struct irq_handler {
-    bool (*func)(struct irq_handler *);
+    void (*func)(struct irq_handler *);
     int handle;
 } irq_handler_t;
 
