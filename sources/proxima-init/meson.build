@@ -8,4 +8,9 @@ project(
 
 hydrogen = dependency('hydrogen')
 
-executable('init', 'main.c', dependencies: hydrogen, install: true)
+executable(
+    'init',
+    'main.c',
+    dependencies: hydrogen,
+    install: true,
+)

@@ -1,5 +1,6 @@
 #include "main.h"
 #include "acpi/acpi.h"
+#include "acpi/serial.h"
 #include "compiler.h"
 #include <assert.h>
 #include <errno.h>
@@ -47,6 +48,9 @@ static void setup_events(void) {
 }
 
 int main(void) {
+    // proxima-devicesd is invoked with the standard streams backed by /dev/klog, which isn't a tty
+    setvbuf(stdout, NULL, _IOLBF, 0);
+
     setup_hw_access();
     setup_events();
     acpi_init();
@@ -55,6 +59,8 @@ int main(void) {
         perror("devicesd: daemon failed");
         return EXIT_FAILURE;
     }
+
+    serial_init_late();
 
     for (;;) {
         process_events(0);
@@ -122,6 +128,8 @@ static void handle_event(hydrogen_event_t *event) {
 
         break;
     }
+    case HYDROGEN_EVENT_FILE_DESCRIPTION_READABLE: serial_handle_readable(); break;
+    case HYDROGEN_EVENT_FILE_DESCRIPTION_WRITABLE: serial_handle_writable(); break;
     default:
         fprintf(stderr, "devicesd: unknown event type %d\n", event->type);
         exit(EXIT_FAILURE);

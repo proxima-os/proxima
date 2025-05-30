@@ -1,5 +1,6 @@
 #include "acpi.h"
 #include "acpi/kernel-api.h"
+#include "acpi/serial.h"
 #include "compiler.h"
 #include "main.h"
 #include "pci/pci.h"
@@ -124,6 +125,12 @@ void acpi_init(void) {
     status = uacpi_install_fixed_event_handler(UACPI_FIXED_EVENT_POWER_BUTTON, handle_power_button, NULL);
     if (uacpi_unlikely_error(status)) {
         fprintf(stderr, "devicesd: failed to install power button handler: %s\n", acpi_error_string(status));
+        exit(EXIT_FAILURE);
+    }
+
+    status = uacpi_find_devices("PNP0501", handle_serial, NULL);
+    if (uacpi_unlikely_error(status)) {
+        fprintf(stderr, "devicesd: failed to find serial port: %s\n", acpi_error_string(status));
         exit(EXIT_FAILURE);
     }
 }

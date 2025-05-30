@@ -21,6 +21,7 @@ executable(
     'proxima-devicesd',
     'acpi/acpi.c',
     'acpi/kernel-api.c',
+    'acpi/serial.c',
     'pci/pci.c',
     'main.c',
     c_args: ['-DUACPI_FORMATTED_LOGGING', '-DUACPI_NATIVE_ALLOC_ZEROED', '-DUACPI_SIZED_FREES'],
