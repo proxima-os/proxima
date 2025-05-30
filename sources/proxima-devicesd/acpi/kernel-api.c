@@ -1,5 +1,6 @@
 #include "kernel-api.h"
 #include "acpi/acpi.h"
+#include "arch/memprops.h"
 #include "arch/pio.h"
 #include "compiler.h"
 #include "main.h"
@@ -38,8 +39,8 @@ static uacpi_size page_align(uacpi_size value) {
     return (value + (hydrogen_page_size - 1)) & ~(hydrogen_page_size - 1);
 }
 
-#define MAP_FLAGS \
-    (HYDROGEN_MEM_READ | HYDROGEN_MEM_WRITE | HYDROGEN_MEM_SHARED | HYDROGEN_MEM_EXACT | HYDROGEN_MEM_OVERWRITE)
+#define MAP_FLAGS (HYDROGEN_MEM_READ | HYDROGEN_MEM_WRITE | HYDROGEN_MEM_SHARED)
+#define MAP_PART_FLAGS (MAP_FLAGS | HYDROGEN_MEM_EXACT | HYDROGEN_MEM_OVERWRITE)
 
 void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
     if (unlikely(len == 0)) return (void *)1;
@@ -47,6 +48,11 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
     uacpi_phys_addr offset = addr & (hydrogen_page_size - 1);
     uacpi_size aligned_len = page_align(offset + len);
 
+#if ARCH_AUTO_CACHE_MODE
+    hydrogen_ret_t ret = hydrogen_fs_mmap(mem_fd, HYDROGEN_THIS_VMM, 0, aligned_len, MAP_FLAGS, addr - offset);
+    if (unlikely(ret.error)) return UACPI_NULL;
+    return (void *)(ret.integer + offset);
+#else
     hydrogen_ret_t ret = hydrogen_vmm_map(
         HYDROGEN_THIS_VMM,
         0,
@@ -83,7 +89,7 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
                 HYDROGEN_THIS_VMM,
                 area,
                 map_len,
-                MAP_FLAGS | HYDROGEN_MEM_TYPE_DEVICE_NO_COMBINE_REORDER_EARLY,
+                MAP_PART_FLAGS | HYDROGEN_MEM_TYPE_DEVICE_NO_COMBINE_REORDER_EARLY,
                 addr - offset
             );
             if (unlikely(ret.error)) goto err;
@@ -99,7 +105,7 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
         uacpi_size cur_len = cur_tail - addr + 1;
         uacpi_size map_len = page_align(cur_len + offset);
 
-        ret = hydrogen_fs_mmap(mem_fd, HYDROGEN_THIS_VMM, area, map_len, MAP_FLAGS, addr - offset);
+        ret = hydrogen_fs_mmap(mem_fd, HYDROGEN_THIS_VMM, area, map_len, MAP_PART_FLAGS, addr - offset);
         if (unlikely(ret.error)) goto err;
 
         addr += cur_len;
@@ -111,6 +117,7 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
 err:
     hydrogen_vmm_unmap(HYDROGEN_THIS_VMM, area, aligned_len);
     return UACPI_NULL;
+#endif
 }
 
 void uacpi_kernel_unmap(void *addr, uacpi_size len) {
