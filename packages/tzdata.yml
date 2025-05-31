@@ -1,0 +1,36 @@
+sources:
+  - name: tzcode
+    subdir: 'ports'
+    url: 'https://data.iana.org/time-zones/releases/tzcode2025b.tar.gz'
+    checksum: 'blake2b:1c9fa834ccdf0a73dd4ca5956e913506b01dc10cd0e278dc2ee0099b08fa726af56cc2d7276e41ab1d3d57faacab97a0b0eab7e1623ef2de46dd576aaded0001'
+    format: 'tar.gz'
+    version: '2025b'
+  - name: tzdata
+    subdir: 'ports'
+    url: 'https://data.iana.org/time-zones/releases/tzdata2025b.tar.gz'
+    checksum: 'blake2b:07421e756cd33f003f1173c320a2e454f767a2ba299b76b54e34dc5cf1c126b00ab3186bc61d4989201a83cb8b3e4c005c0bc080fb39a1e48ff9555d50c84f1d'
+    format: 'tar.gz'
+    version: '2025b'
+
+packages:
+  - name: tzdata
+    architecture: '@OPTION:arch@'
+    from_source: tzdata
+    implict_package: true # mlibc requires tzdata at runtime
+    pkgs_required:
+      - mlibc
+    sources_required:
+      - tzcode
+    tools_required:
+      - gcc
+    configure:
+      - args: ['cp', '-pr', '@THIS_SOURCE_DIR@/.', '.']
+      - args: ['cp', '-pr', '@SOURCE_ROOT@/ports/tzcode/.', '.']
+    build:
+      - args:
+          - 'make'
+          - '-j@PARALLELISM@'
+          - 'CC=@OPTION:arch@-@OPTION:triplet@-gcc'
+          - 'AR=@OPTION:arch@-@OPTION:triplet@-ar'
+      - args: ['make', '-j@PARALLELISM@', 'DESTDIR=@THIS_COLLECT_DIR@', 'ZIC=zic', 'install']
+      - args: ['ln', '-sf', '../usr/share/zoneinfo/UTC', '@THIS_COLLECT_DIR@/etc/localtime']

@@ -50,3 +50,4 @@ imports:
   - file: packages/proxima.yml
   - file: packages/proxima-devicesd.yml
   - file: packages/proxima-init.yml
+  - file: packages/tzdata.yml
