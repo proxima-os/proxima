@@ -36,6 +36,7 @@ tasks:
 imports:
   - file: packages/autoconf.yml
   - file: packages/automake.yml
+  - file: packages/bash.yml
   - file: packages/binutils.yml
   - file: packages/cmake.yml
   - file: packages/filesystem.yml

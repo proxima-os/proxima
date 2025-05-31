@@ -1,0 +1,38 @@
+packages:
+  - name: bash
+    architecture: '@OPTION:arch@'
+    source:
+      subdir: 'ports'
+      url: 'https://ftpmirror.gnu.org/bash/bash-5.2.tar.gz'
+      checksum: 'blake2b:51b196e710794ebad8eac28c31c93eb99ac1a7db30919a13271e39e1cb66a0672f242df75fc7d71627ea873dfbce53ec35c0c56a71c5167143070a7811343fd9'
+      format: 'tar.gz'
+      extract_path: 'bash-5.2'
+      version: '5.2'
+      tools_required:
+        - autoconf
+        - automake
+        - libtool
+        - pkgconf
+      regenerate:
+        - args: ['@SOURCE_ROOT@/support/autoconf/regenerate.sh']
+          environ:
+            AUTOHEADER: 'true'
+    pkgs_required:
+      - ncurses
+      - readline
+    tools_required:
+      - gcc
+      - pkgconf
+    configure:
+      - args:
+          - '@THIS_SOURCE_DIR@/configure'
+          - '--host=@OPTION:arch@-@OPTION:triplet@'
+          - '--prefix=/usr'
+          - '--with-curses'
+          - '--without-bash-malloc'
+          - 'CFLAGS=-DHEREDOC_PIPEMAX=0x4000 -std=gnu17'
+          - 'CFLAGS_FOR_BUILD=-std=gnu17'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', '-j@PARALLELISM@', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
+      - args: ['ln', '-sf', 'bash', '@THIS_COLLECT_DIR@/usr/bin/sh']
