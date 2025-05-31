@@ -78,11 +78,23 @@ tools:
         pkgs_required:
           - mlibc
         compile:
-          - args: ['make', '-j@PARALLELISM@', 'all-gcc', 'all-target-libgcc', 'all-target-libstdc++-v3']
+          - args: ['make', '-j@PARALLELISM@']
         install:
-          - args: ['make', '-j@PARALLELISM@', 'install-gcc', 'install-target-libgcc', 'install-target-libstdc++-v3']
+          - args: ['make', '-j@PARALLELISM@', 'install']
           - args: ['mkdir', '-p', '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin']
           - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/as',
                                 '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/as']
           - args: ['ln', '-sf', '../../../binutils/@OPTION:arch@-@OPTION:triplet@/bin/ld',
                                 '@PREFIX@/@OPTION:arch@-@OPTION:triplet@/bin/ld']
+
+packages:
+  - name: gcc-libs
+    implict_package: true
+    architecture: '@OPTION:arch@'
+    from_source: gcc
+    tools_required:
+      - gcc
+    build:
+      - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/lib']
+      - args: "cp -p '@BUILD_ROOT@/tools/gcc/@OPTION:arch@-@OPTION:triplet@/lib/'*.so* '@THIS_COLLECT_DIR@/usr/lib'"
+      - args: ['find', '@THIS_COLLECT_DIR@', '-type', 'f', '!', '-regex', '.*.so[.0-9]*', '-delete']
