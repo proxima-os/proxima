@@ -89,7 +89,7 @@
 static uint32_t serial_irq;
 static pio_addr_t serial_io;
 static unsigned serial_thr_available;
-static int serial_pty_fd;
+static int serial_pty_fd = -1;
 static bool serial_readable;
 static bool serial_writable;
 
