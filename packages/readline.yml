@@ -1,0 +1,34 @@
+packages:
+  - name: readline
+    architecture: '@OPTION:arch@'
+    source:
+      subdir: ports
+      url: 'https://ftpmirror.gnu.org/readline/readline-8.2.tar.gz'
+      checksum: 'blake2b:7974322b9c092a756a79e537df08e8532f8e0fcb598f77732e28287c33ebec9e9837ed88b43334c310892d56a871b423903f0f564def2fbe700a1004f2ae7b18'
+      format: 'tar.gz'
+      extract_path: 'readline-8.2'
+      version: '8.2'
+      tools_required:
+        - autoconf
+      regenerate:
+        - args:
+            - 'cp'
+            - '-p'
+            - '@BUILD_ROOT@/tools/autoconf/share/autoconf/build-aux/config.guess'
+            - '@BUILD_ROOT@/tools/autoconf/share/autoconf/build-aux/config.sub'
+            - 'support'
+        - args: ['cp', '-p', '@BUILD_ROOT@/tools/autoconf/share/autoconf/build-aux/install-sh', 'support/install.sh']
+    pkgs_required:
+      - ncurses
+    tools_required:
+      - gcc
+    configure:
+      - args: 
+          - '@THIS_SOURCE_DIR@/configure'
+          - '--host=@OPTION:arch@-@OPTION:triplet@'
+          - '--prefix=/usr'
+          - '--enable-multibyte'
+          - '--with-curses'
+    build:
+      - args: ['make', '-j@PARALLELISM@', 'SHLIB_LIBS=-lncursesw -ltinfow']
+      - args: ['make', '-j@PARALLELISM@', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
