@@ -1,0 +1,27 @@
+From f9c47a60f64c2a192a7cd7ff5d56e78e05850218 Mon Sep 17 00:00:00 2001
+From: monkuous <84319635+monkuous@users.noreply.github.com>
+Date: Sat, 31 May 2025 15:32:30 +0200
+Subject: [PATCH] Add Hydrogen support
+
+---
+ configure | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/configure b/configure
+index 3f3f0b9..9dd0e6a 100755
+--- a/configure
++++ b/configure
+@@ -7128,6 +7128,10 @@ echo "${ECHO_T}$cf_cv_ldflags_search_paths_first" >&6
+ 		# readonly to exploit a quirk in the memory manager.
+ 		INSTALL_LIB="-m 555"
+ 		;;
++	(hydrogen*)
++		CC_SHARED_OPTS='-fPIC'
++		MK_SHARED_LIB='${CC} -shared -o $@'
++		;;
+ 	(interix*)
+ 		test "$cf_cv_shlib_version" = auto && cf_cv_shlib_version=rel
+ 		if test "$cf_cv_shlib_version" = rel; then
+-- 
+2.49.0
+

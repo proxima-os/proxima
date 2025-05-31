@@ -1,0 +1,44 @@
+packages:
+  - name: ncurses
+    source:
+      subdir: ports
+      git: 'https://github.com/ThomasDickey/ncurses-snapshots.git'
+      tag: 'v6_5_20250524'
+      version: '6.5.20250524'
+      tools_required:
+        - autoconf
+      regenerate:
+        - args:
+            - 'cp'
+            - '-p'
+            - '@BUILD_ROOT@/tools/autoconf/share/autoconf/build-aux/config.guess'
+            - '@BUILD_ROOT@/tools/autoconf/share/autoconf/build-aux/config.sub'
+            - '.'
+    architecture: '@OPTION:arch@'
+    tools_required:
+      - gcc
+    configure:
+      - args:
+          - '@THIS_SOURCE_DIR@/configure'
+          - '--host=@OPTION:arch@-@OPTION:triplet@'
+          - '--prefix=/usr'
+          - '--enable-widec'
+          - '--enable-pc-files'
+          - '--with-shared'
+          - '--with-cxx-shared'
+          - '--with-cxx-binding'
+          - '--without-normal'
+          - '--without-debug'
+          - '--with-manpage-format=normal'
+          - '--with-pkg-config-libdir=/usr/lib/pkgconfig'
+          - '--with-termlib'
+          - '--without-ada'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', '-j@PARALLELISM@', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
+      - args: |
+          for lib in ncurses ncurses++ form panel menu tinfo; do
+            ln -sf lib${lib}w.so '@THIS_COLLECT_DIR@/usr/lib'/lib$lib.so
+            ln -sf ${lib}w.pc '@THIS_COLLECT_DIR@/usr/lib/pkgconfig'/$lib.pc
+          done
+          ln -sf libncursesw.so '@THIS_COLLECT_DIR@/usr/lib/libcurses.so'

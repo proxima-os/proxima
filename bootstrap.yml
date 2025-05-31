@@ -46,6 +46,7 @@ imports:
   - file: packages/llvm.yml
   - file: packages/meson.yml
   - file: packages/mlibc.yml
+  - file: packages/ncurses.yml
   - file: packages/pkgconf.yml
   - file: packages/proxima.yml
   - file: packages/proxima-devicesd.yml
