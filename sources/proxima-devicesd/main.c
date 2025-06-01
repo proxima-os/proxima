@@ -109,21 +109,23 @@ static void handle_event(hydrogen_event_t *event) {
     case HYDROGEN_EVENT_INTERRUPT_PENDING: {
         if (disable_interrupts) break;
 
-        irq_handler_t *handler = event->ctx;
-        int error = hydrogen_interrupt_wait(handler->handle, 1, 0);
+        for (;;) {
+            irq_handler_t *handler = event->ctx;
+            int error = hydrogen_interrupt_wait(handler->handle, 1, 0);
 
-        if (error) {
-            if (likely(error == EAGAIN)) return;
-            fprintf(stderr, "devicesd: failed to get interrupt information: %s\n", strerror(error));
-            exit(EXIT_FAILURE);
-        }
+            if (error) {
+                if (likely(error == EAGAIN)) return;
+                fprintf(stderr, "devicesd: failed to get interrupt information: %s\n", strerror(error));
+                exit(EXIT_FAILURE);
+            }
 
-        handler->func(handler);
+            handler->func(handler);
 
-        error = hydrogen_interrupt_complete(handler->handle);
-        if (unlikely(error)) {
-            fprintf(stderr, "devicesd: failed to complete interrupt: %s\n", strerror(error));
-            exit(EXIT_FAILURE);
+            error = hydrogen_interrupt_complete(handler->handle);
+            if (unlikely(error)) {
+                fprintf(stderr, "devicesd: failed to complete interrupt: %s\n", strerror(error));
+                exit(EXIT_FAILURE);
+            }
         }
 
         break;
