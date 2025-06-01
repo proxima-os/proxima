@@ -404,12 +404,11 @@ void uacpi_kernel_stall(uacpi_u8 usec) {
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec) {
-    uacpi_u64 end = hydrogen_boot_time() + msec * 1000000ull;
-    int error;
+    uacpi_u64 deadline = hydrogen_boot_time() + msec * 1000000ull;
 
-    do {
-        error = hydrogen_thread_sleep(end);
-    } while (error != 0);
+    for (;;) {
+        if (!process_events(deadline)) break;
+    }
 }
 
 typedef struct {
