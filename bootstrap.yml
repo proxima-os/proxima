@@ -39,6 +39,7 @@ imports:
   - file: packages/bash.yml
   - file: packages/binutils.yml
   - file: packages/cmake.yml
+  - file: packages/coreutils.yml
   - file: packages/filesystem.yml
   - file: packages/gcc.yml
   - file: packages/hydrogen.yml

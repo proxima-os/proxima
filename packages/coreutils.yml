@@ -1,0 +1,24 @@
+packages:
+  - name: coreutils
+    architecture: '@OPTION:arch@'
+    source:
+      subdir: 'ports'
+      url: 'https://ftpmirror.gnu.org/coreutils/coreutils-9.6.tar.xz'
+      checksum: 'blake2b:4070d3d272851d3e9c326df9c05ce67797d86852e7f5c26e545f987f444295f2cfca24e8569514d7b5edf8fd50318d07cb20dea4a4ce8c65b34bea0c5a9177be'
+      format: 'tar.xz'
+      extract_path: 'coreutils-9.6'
+      version: '9.6'
+      tools_required:
+        - autoconf
+      regenerate:
+        - args: ['cp', '-p', '@BUILD_ROOT@/tools/autoconf/share/autoconf/build-aux/config.sub', 'build-aux']
+    tools_required:
+      - gcc
+    configure:
+      - args:
+          - '@THIS_SOURCE_DIR@/configure'
+          - '--host=@OPTION:arch@-@OPTION:triplet@'
+          - '--prefix=/usr'
+    build:
+      - args: ['make', '-j@PARALLELISM@']
+      - args: ['make', '-j@PARALLELISM@', 'DESTDIR=@THIS_COLLECT_DIR@', 'install']
