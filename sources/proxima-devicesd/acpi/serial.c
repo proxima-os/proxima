@@ -462,4 +462,10 @@ void serial_init_late(void) {
         fprintf(stderr, "devicesd: failed to create klog mirroring thread: %s\n", strerror(error));
         exit(EXIT_FAILURE);
     }
+
+    error = hydrogen_thread_set_scheduler(HYDROGEN_SCHEDULER_RR, 31);
+    if (unlikely(error)) {
+        fprintf(stderr, "devicesd: failed to set priority: %s\n", strerror(error));
+        exit(EXIT_FAILURE);
+    }
 }
