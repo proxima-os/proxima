@@ -91,6 +91,7 @@ int main(int argc, char *argv[]) {
 
     printf("transitioned to standard streams\n");
 
+    setenv("HOME", "/", 0);
     execl("/usr/bin/bash", "/usr/bin/bash", "--login", NULL);
     perror("init: failed to start bash");
 }

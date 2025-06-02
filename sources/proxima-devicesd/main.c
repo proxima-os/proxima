@@ -131,7 +131,6 @@ static void handle_event(hydrogen_event_t *event) {
         break;
     }
     case HYDROGEN_EVENT_FILE_DESCRIPTION_READABLE: serial_handle_readable(); break;
-    case HYDROGEN_EVENT_FILE_DESCRIPTION_WRITABLE: serial_handle_writable(); break;
     default:
         fprintf(stderr, "devicesd: unknown event type %d\n", event->type);
         exit(EXIT_FAILURE);

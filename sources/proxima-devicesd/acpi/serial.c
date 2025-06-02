@@ -11,6 +11,7 @@
 #include <hydrogen/handle.h>
 #include <hydrogen/ioctl-data.h>
 #include <hydrogen/ioctl.h>
+#include <hydrogen/thread.h>
 #include <hydrogen/types.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -91,15 +92,7 @@ static pio_addr_t serial_io;
 static unsigned serial_thr_available;
 static int serial_pty_fd = -1;
 static bool serial_readable;
-static bool serial_writable;
-
-static unsigned char *serial_input_buf;
-static size_t serial_input_buf_head;
-static size_t serial_input_buf_tail;
-static bool serial_input_buf_data;
-static size_t serial_input_buf_cap;
-
-static bool read_listen, write_listen;
+static bool read_listen;
 
 static inline uint8_t serial_read(uint8_t reg) {
     return pio_read8(serial_io + reg);
@@ -107,28 +100,6 @@ static inline uint8_t serial_read(uint8_t reg) {
 
 static inline void serial_write(uint8_t reg, uint8_t value) {
     pio_write8(serial_io + reg, value);
-}
-
-static void append_input(unsigned char value) {
-    if (!serial_input_buf_cap || (serial_input_buf_data && serial_input_buf_head == serial_input_buf_tail)) {
-        size_t new_cap = serial_input_buf_cap ? serial_input_buf_cap * 2 : 128;
-        serial_input_buf = realloc(serial_input_buf, new_cap);
-        if (unlikely(!serial_input_buf)) {
-            fprintf(stderr, "devicesd: failed to allocate serial input buffer\n");
-            exit(EXIT_FAILURE);
-        }
-
-        if (serial_input_buf_data && serial_input_buf_head >= serial_input_buf_tail) {
-            memcpy(&serial_input_buf[serial_input_buf_cap], serial_input_buf, serial_input_buf_tail);
-            serial_input_buf_tail += serial_input_buf_cap;
-        }
-
-        serial_input_buf_cap = new_cap;
-    }
-
-    serial_input_buf[serial_input_buf_tail++] = value;
-    if (serial_input_buf_tail == serial_input_buf_cap) serial_input_buf_tail = 0;
-    serial_input_buf_data = true;
 }
 
 static void listen_readable(void) {
@@ -148,6 +119,18 @@ static void listen_readable(void) {
     }
 
     read_listen = true;
+}
+
+static void write_fully(int fd, const void *data, size_t size) {
+    while (size) {
+        ssize_t count = write(fd, data, size);
+        if (unlikely(count <= 0)) {
+            perror("devicesd: write failed");
+            exit(EXIT_FAILURE);
+        }
+        data += count;
+        size -= count;
+    }
 }
 
 static void handle_serial_irq(irq_handler_t *ptr) {
@@ -173,32 +156,19 @@ static void handle_serial_irq(irq_handler_t *ptr) {
         listen_readable();
         break;
     case SERIAL_IIR_TYPE_HAVE_DATA: {
+        unsigned char data[1024];
+        size_t num_data = 0;
+
         do {
-            append_input(serial_read(SERIAL_RHR));
+            if (num_data == sizeof(data)) {
+                write_fully(serial_pty_fd, data, num_data);
+                num_data = 0;
+            }
+
+            data[num_data++] = serial_read(SERIAL_RHR);
         } while (serial_read(SERIAL_LSR) & SERIAL_LSR_DR);
 
-        if (serial_writable) {
-            serial_handle_writable();
-            if (!serial_input_buf_data) return;
-        }
-
-        if (write_listen) return;
-
-        int error = hydrogen_event_queue_add(
-            event_queue,
-            serial_pty_fd,
-            HYDROGEN_EVENT_FILE_DESCRIPTION_WRITABLE,
-            0,
-            NULL,
-            0
-        );
-        if (unlikely(error)) {
-            fprintf(stderr, "devicesd: failed to start listening to pseudoterminal writability: %s\n", strerror(error));
-            exit(EXIT_FAILURE);
-        }
-
-        write_listen = true;
-
+        write_fully(serial_pty_fd, data, num_data);
         break;
     }
     default:
@@ -247,50 +217,6 @@ void serial_handle_readable(void) {
 
         serial_thr_available -= count;
     } while (serial_thr_available);
-}
-
-void serial_handle_writable(void) {
-    if (!serial_input_buf_data) {
-        serial_writable = true;
-
-        hydrogen_ret_t
-            ret = hydrogen_event_queue_remove(event_queue, serial_pty_fd, HYDROGEN_EVENT_FILE_DESCRIPTION_WRITABLE, 0);
-        if (unlikely(ret.error)) {
-            fprintf(
-                stderr,
-                "devicesd: failed to stop listening to pseudoterminal writability: %s\n",
-                strerror(ret.error)
-            );
-            exit(EXIT_FAILURE);
-        }
-
-        write_listen = false;
-        return;
-    }
-
-    for (;;) {
-        size_t avail = serial_input_buf_head < serial_input_buf_tail ? serial_input_buf_tail - serial_input_buf_head
-                                                                     : serial_input_buf_cap - serial_input_buf_head;
-
-        ssize_t count = write(serial_pty_fd, &serial_input_buf[serial_input_buf_head], avail);
-        if (count < 0) {
-            if (errno == EAGAIN) {
-                serial_writable = false;
-                return;
-            }
-
-            perror("devicesd: failed to write to pseudoterminal");
-            exit(EXIT_FAILURE);
-        }
-
-        serial_input_buf_head += count;
-        if (serial_input_buf_head == serial_input_buf_cap) serial_input_buf_head = 0;
-
-        if (serial_input_buf_head == serial_input_buf_tail) {
-            serial_input_buf_data = false;
-            return;
-        }
-    }
 }
 
 static irq_handler_t serial_irq_handler = {.func = handle_serial_irq};

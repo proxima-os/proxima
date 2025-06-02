@@ -15,10 +15,19 @@
             "miDebuggerPath": "${workspaceFolder}/support/gdb.sh",
             "setupCommands": [
                 {
-                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/bin/proxima-devicesd -o 0x1000"
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/bin/bash -o 0x1000"
                 },
                 {
-                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libc.so -o 0xbef000"
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libhydrogen.so -o 0x17e000"
+                },
+                {
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libtinfo.so -o 0xd04000"
+                },
+                {
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libdl.so -o 0xd44000"
+                },
+                {
+                    "text": "add-symbol-file ${workspaceFolder}/build/system-root/usr/lib/libc.so -o 0xd46000"
                 }
             ],
             "preLaunchTask": "Proxima: rebuild active package",

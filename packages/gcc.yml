@@ -96,5 +96,5 @@ packages:
       - gcc
     build:
       - args: ['mkdir', '-p', '@THIS_COLLECT_DIR@/usr/lib']
-      - args: "cp -p '@BUILD_ROOT@/tools/gcc/@OPTION:arch@-@OPTION:triplet@/lib/'*.so* '@THIS_COLLECT_DIR@/usr/lib'"
+      - args: "cp -pd '@BUILD_ROOT@/tools/gcc/@OPTION:arch@-@OPTION:triplet@/lib/'*.so* '@THIS_COLLECT_DIR@/usr/lib'"
       - args: ['find', '@THIS_COLLECT_DIR@', '-type', 'f', '!', '-regex', '.*.so[.0-9]*', '-delete']
